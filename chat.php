@@ -538,6 +538,9 @@ $initTab = ($registerSuccess || $registerError) ? 'register' : 'login';
                 <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
                 <button type="submit">เข้าสู่ระบบ</button>
             </form>
+            <div style="text-align:center;margin-top:14px">
+                <a href="index.php" style="font-size:13px;color:var(--muted);text-decoration:none;opacity:.8">← กลับหน้าหลัก</a>
+            </div>
 
             <!-- ── Register Form ── -->
             <?php if ($allowRegistration): ?>
