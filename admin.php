@@ -307,12 +307,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /* ── Edit model ── */
     if (isset($_POST['edit_model'])) {
-        $mid    = (int)$_POST['edit_model_id'];
-        $mname  = trim($_POST['edit_model_name']  ?? '');
-        $mlabel = trim($_POST['edit_model_label'] ?? '');
+        $mid      = (int)$_POST['edit_model_id'];
+        $mname    = trim($_POST['edit_model_name']  ?? '');
+        $mlabel   = trim($_POST['edit_model_label'] ?? '');
+        $mactive  = isset($_POST['edit_model_active']) ? 1 : 0;
         if (!empty($mname)) {
-            db()->prepare('UPDATE `models` SET name=?, label=? WHERE id=?')
-                ->execute([$mname, $mlabel ?: $mname, $mid]);
+            db()->prepare('UPDATE `models` SET name=?, label=?, is_active=? WHERE id=?')
+                ->execute([$mname, $mlabel ?: $mname, $mactive, $mid]);
             $flashMsg = 'แก้ไข Model แล้ว';
         }
     }
@@ -801,7 +802,7 @@ tr:hover td{background:var(--hover-bg)}
                 </td>
                 <td>
                     <div style="display:flex;gap:6px;flex-wrap:wrap">
-                        <button class="btn btn-ghost btn-sm" onclick="openEditModel(<?= $m['id'] ?>, '<?= e(addslashes($m['name'])) ?>', '<?= e(addslashes($m['label'])) ?>')">✏️ แก้ไข</button>
+                        <button class="btn btn-ghost btn-sm" onclick="openEditModel(<?= $m['id'] ?>, '<?= e(addslashes($m['name'])) ?>', '<?= e(addslashes($m['label'])) ?>', <?= $m['is_active'] ? 1 : 0 ?>)">✏️ แก้ไข</button>
                         <form method="POST" onsubmit="return confirm('ลบ Model <?= e(addslashes($m['name'])) ?>?')" style="display:inline">
                             <input type="hidden" name="delete_model" value="<?= $m['id'] ?>">
                             <button class="btn btn-danger btn-sm">🗑 ลบ</button>
@@ -830,8 +831,17 @@ tr:hover td{background:var(--hover-bg)}
                     <label>Label (แสดงผล)</label>
                     <input type="text" name="edit_model_label" id="editModelLabel" placeholder="เว้นว่างใช้ชื่อ Model">
                 </div>
+                <div class="fg">
+                    <label style="margin-bottom:8px;display:block">สถานะการใช้งาน</label>
+                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+                        <input type="checkbox" name="edit_model_active" id="editModelActive" value="1"
+                               style="width:18px;height:18px;accent-color:#10a37f;cursor:pointer">
+                        <span id="editModelActiveLabel" style="font-size:13px"></span>
+                    </label>
+                    <small style="color:var(--muted)">ปิดการใช้งาน = ซ่อนจาก dropdown ในหน้า Chat แต่ยังเก็บข้อมูลไว้</small>
+                </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">บันทึก</button>
+                    <button type="submit" class="btn btn-primary">💾 บันทึก</button>
                     <button type="button" class="btn btn-ghost" onclick="closeModal('editModelModal')">ยกเลิก</button>
                 </div>
             </form>
@@ -1472,10 +1482,19 @@ function openEditUser(uid, username, display, role, tokenLimit, resetHours, glbL
 }
 
 // ── Edit Model Modal ──────────────────────────────────────────────────────────
-function openEditModel(id, name, label) {
+function openEditModel(id, name, label, isActive) {
     document.getElementById('editModelId').value    = id;
     document.getElementById('editModelName').value  = name;
     document.getElementById('editModelLabel').value = label;
+    const chk = document.getElementById('editModelActive');
+    const lbl = document.getElementById('editModelActiveLabel');
+    function syncModelActiveLabel() {
+        lbl.textContent = chk.checked ? '● เปิดใช้งาน' : '○ ปิดการใช้งาน';
+        lbl.style.color = chk.checked ? '#10a37f' : 'var(--muted)';
+    }
+    chk.checked  = !!isActive;
+    chk.onchange = syncModelActiveLabel;
+    syncModelActiveLabel();
     document.getElementById('editModelModal').classList.add('open');
 }
 
