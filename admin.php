@@ -498,7 +498,7 @@ tr:hover td{background:var(--hover-bg)}
 /* ── Modals ── */
 .modal-bg{display:none;position:fixed;inset:0;background:var(--overlay);z-index:200;align-items:center;justify-content:center}
 .modal-bg.open{display:flex}
-.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:26px;width:460px;max-width:94vw;max-height:90vh;overflow-y:auto}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:28px 32px;width:480px;max-width:92vw;max-height:88vh;overflow-y:auto}
 .modal h3{font-size:16px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px}
 .modal-footer{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
 
@@ -1427,6 +1427,8 @@ function closeSidebar() {
 // ── Modal helpers ─────────────────────────────────────────────────────────────
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 document.querySelectorAll('.modal-bg').forEach(m => {
+    // editUserModal ปิดได้เฉพาะปุ่มยกเลิก/บันทึก เท่านั้น
+    if (m.id === 'editUserModal') return;
     m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
 });
 
