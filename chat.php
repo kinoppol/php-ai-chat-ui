@@ -67,15 +67,23 @@ $siteName          = chatSetting('site_name',          'AI Chat');
 $allowRegistration = chatSetting('allow_registration', '1') === '1';
 $registrationNote  = chatSetting('registration_note',  'กรุณารอการอนุมัติจาก Admin ก่อนเข้าใช้งาน');
 // Load active models from DB (auto-fallback to settings if table missing)
-$modelsList = $model; // fallback
+$modelsList   = $model; // fallback
+$__modelsData = [];
+$noModels     = false;  // true = มี models table แต่ไม่มีโมเดลเปิดอยู่เลย
 try {
     $__stmt = chatDb()->query('SELECT name, label FROM `models` WHERE is_active=1 ORDER BY sort_order ASC, id ASC');
     $__rows = $__stmt->fetchAll(PDO::FETCH_ASSOC);
-    if (!empty($__rows)) {
-        $modelsList = implode(',', array_column($__rows, 'name'));
-        $__modelsData = $__rows; // [{name, label}]
+    // ตรวจว่า models table มีข้อมูลอยู่เลยหรือไม่ (เพื่อแยก "ยังไม่ migrate" vs "ปิดหมด")
+    $__total = (int)chatDb()->query('SELECT COUNT(*) FROM `models`')->fetchColumn();
+    if ($__total > 0) {
+        // table มีข้อมูล — ถ้าไม่มี active = ปิดหมด
+        $noModels = empty($__rows);
     }
-} catch (Throwable) { /* models table not yet migrated */ }
+    if (!empty($__rows)) {
+        $modelsList   = implode(',', array_column($__rows, 'name'));
+        $__modelsData = $__rows;
+    }
+} catch (Throwable) { /* models table not yet migrated — ใช้ fallback จาก settings */ }
 
 // ─── Session & Auth ───────────────────────────────────────────────────────────
 session_start();
@@ -1638,6 +1646,11 @@ endif;
                 </button>
                 
                 <div class="model-dropdown">
+                    <?php if ($noModels): ?>
+                    <span class="model-selector" style="cursor:default;opacity:.5;color:var(--muted)">
+                        ⚠️ ไม่มี AI Model
+                    </span>
+                    <?php else: ?>
                     <button class="model-selector" id="modelSelector">
                         <span id="currentModel"><?= htmlspecialchars($model) ?></span>
                         <svg viewBox="0 0 24 24">
@@ -1659,6 +1672,7 @@ endif;
                         <?php   endforeach;
                         } ?>
                     </div>
+                    <?php endif; ?>
                 </div>
 
                 <div class="header-actions">
@@ -1685,10 +1699,15 @@ endif;
             <!-- Input Area -->
             <div class="input-container">
                 <div class="input-wrapper">
+                    <?php if ($noModels): ?>
+                    <div style="width:100%;padding:14px 16px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:12px;font-size:13px;color:#fbbf24;text-align:center">
+                        ⚠️ ขณะนี้ไม่มี AI Model ที่เปิดใช้งาน — กรุณาติดต่อผู้ดูแลระบบ
+                    </div>
+                    <?php else: ?>
                     <div class="input-box" id="inputBox">
-                        <textarea 
-                            id="messageInput" 
-                            placeholder="Message AI..." 
+                        <textarea
+                            id="messageInput"
+                            placeholder="Message AI..."
                             rows="1"
                             autofocus
                         ></textarea>
@@ -1727,7 +1746,7 @@ endif;
                         <span id="tokenSep" <?= ($userTokenLimit <= 0) ? 'style="display:none"' : '' ?>>·</span>
                         <span>AI can make mistakes. Consider checking important information.</span>
                     </div>
-                </div>
+                    </div><?php endif; // $noModels ?>
             </div>
         </main>
     </div>
