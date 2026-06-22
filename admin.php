@@ -113,7 +113,7 @@ $adminUsername = $_SESSION['admin_username'] ?? 'Admin';
 
 if ($page === 'logout') {
     session_destroy();
-    header('Location: admin.php');
+    header('Location: index.php');
     exit;
 }
 
@@ -398,6 +398,9 @@ input:focus{border-color:#5436da;box-shadow:0 0 0 3px rgba(84,54,218,.15)}
         <input type="password" name="password" placeholder="••••••••" autocomplete="current-password">
         <button type="submit" class="btn">เข้าสู่ระบบ</button>
     </form>
+    <div style="text-align:center;margin-top:18px">
+        <a href="index.php" style="font-size:13px;color:#818cf8;text-decoration:none;opacity:.8">← กลับหน้าหลัก</a>
+    </div>
 </div>
 <?= themeToggleBtn('theme-float') ?>
 <?= themeScript() ?>

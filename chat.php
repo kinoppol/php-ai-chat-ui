@@ -87,7 +87,7 @@ $currentUsername = '';
 // Handle logout
 if (isset($_GET['logout'])) {
     session_destroy();
-    header('Location: chat.php');
+    header('Location: index.php');
     exit;
 }
 
