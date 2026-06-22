@@ -589,7 +589,8 @@ tr:hover td{background:var(--hover-bg)}
 
     <?php
         // version จากเวลา commit ล่าสุด: v0.yyMMddHHii
-        $gitTs  = @shell_exec('git -C ' . escapeshellarg(__DIR__) . ' log -1 --format=%ci 2>NUL');
+        $null   = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
+        $gitTs  = @shell_exec('git -C ' . escapeshellarg(__DIR__) . ' log -1 --format=%ci 2>' . $null);
         $gitTs  = trim((string)$gitTs);
         $verStr = 'v0.dev';
         if ($gitTs && ($dt = date_create($gitTs))) {
@@ -841,8 +842,18 @@ tr:hover td{background:var(--hover-bg)}
          USERS
     ════════════════════════════════════════════════════════════════════ -->
     <?php elseif ($page === 'users'):
-        $users        = db()->query('SELECT id,username,display_name,role,is_active,created_at,last_login,token_limit,tokens_used,tokens_total,tokens_reset_at,token_reset_hours FROM users WHERE is_active=1 ORDER BY role DESC, created_at ASC')->fetchAll();
-        $pendingUsers = db()->query('SELECT id,username,display_name,created_at FROM users WHERE is_active=0 ORDER BY created_at ASC')->fetchAll();
+        // ตรวจว่า column token ใหม่มีหรือไม่ (อาจยังไม่ได้ run migration บน server)
+        try {
+            $users = db()->query('SELECT id,username,display_name,role,is_active,created_at,last_login,token_limit,tokens_used,tokens_total,tokens_reset_at,token_reset_hours FROM users WHERE is_active=1 ORDER BY role DESC, created_at ASC')->fetchAll();
+        } catch (Throwable) {
+            // fallback: ไม่มี token columns (migration ยังไม่ได้รัน)
+            $users = db()->query('SELECT id,username,display_name,role,is_active,created_at,last_login,NULL AS token_limit,0 AS tokens_used,0 AS tokens_total,NULL AS tokens_reset_at,NULL AS token_reset_hours FROM users WHERE is_active=1 ORDER BY role DESC, created_at ASC')->fetchAll();
+        }
+        try {
+            $pendingUsers = db()->query('SELECT id,username,display_name,created_at FROM users WHERE is_active=0 ORDER BY created_at ASC')->fetchAll();
+        } catch (Throwable) {
+            $pendingUsers = [];
+        }
     ?>
 
     <!-- Pending registrations -->
@@ -1137,24 +1148,32 @@ tr:hover td{background:var(--hover-bg)}
         $glbLim = (int)getSetting('default_token_limit','0');
         $glbRst = (int)getSetting('default_token_reset_hours','0');
         // สถิติ: user ที่ใช้ค่ากลาง vs ค่าส่วนตัว
-        $tStats = db()->query("
-            SELECT
-                SUM(token_limit IS NULL)       AS lim_global,
-                SUM(token_limit IS NOT NULL)   AS lim_custom,
-                SUM(token_reset_hours IS NULL) AS rst_global,
-                SUM(token_reset_hours IS NOT NULL) AS rst_custom,
-                SUM(tokens_used)               AS total_used,
-                COUNT(*)                        AS total_users
-            FROM users WHERE is_active=1
-        ")->fetch(PDO::FETCH_ASSOC);
+        try {
+            $tStats = db()->query("
+                SELECT
+                    SUM(token_limit IS NULL)           AS lim_global,
+                    SUM(token_limit IS NOT NULL)       AS lim_custom,
+                    SUM(token_reset_hours IS NULL)     AS rst_global,
+                    SUM(token_reset_hours IS NOT NULL) AS rst_custom,
+                    SUM(tokens_used)                   AS total_used,
+                    COUNT(*)                            AS total_users
+                FROM users WHERE is_active=1
+            ")->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable) {
+            $tStats = ['lim_global'=>0,'lim_custom'=>0,'rst_global'=>0,'rst_custom'=>0,'total_used'=>0,'total_users'=>0];
+        }
         // top 5 users by tokens_used
-        $topUsers = db()->query("
-            SELECT username, display_name,
-                   tokens_used, tokens_total,
-                   COALESCE(token_limit, " . (int)getSetting('default_token_limit','0') . ") AS eff_limit
-            FROM users WHERE is_active=1
-            ORDER BY tokens_used DESC LIMIT 5
-        ")->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $topUsers = db()->query("
+                SELECT username, display_name,
+                       tokens_used, tokens_total,
+                       COALESCE(token_limit, " . (int)getSetting('default_token_limit','0') . ") AS eff_limit
+                FROM users WHERE is_active=1
+                ORDER BY tokens_used DESC LIMIT 5
+            ")->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable) {
+            $topUsers = [];
+        }
     ?>
     <h2 class="page-title">🪙 ควบคุม Token</h2>
     <?php if (isset($_GET['saved'])): ?>
