@@ -907,9 +907,9 @@ endif;
             width: 72px;
             height: 72px;
             margin-bottom: 24px;
-            opacity: 0.3;
+            opacity: 0.45;
         }
-        
+
         .empty-state-logo svg {
             width: 100%;
             height: 100%;
@@ -1686,8 +1686,13 @@ endif;
                     <!-- Empty State -->
                     <div class="empty-state" id="emptyState">
                         <div class="empty-state-logo">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"></path>
+                            <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                <!-- sparkle ใหญ่ตรงกลาง -->
+                                <path d="M12 2 C12 2 12.6 6.5 14.5 8.5 C16.4 10.5 21 12 21 12 C21 12 16.4 13.5 14.5 15.5 C12.6 17.5 12 22 12 22 C12 22 11.4 17.5 9.5 15.5 C7.6 13.5 3 12 3 12 C3 12 7.6 10.5 9.5 8.5 C11.4 6.5 12 2 12 2Z"/>
+                                <!-- sparkle เล็กบนขวา -->
+                                <path d="M19 3 C19 3 19.35 5 20.25 5.9 C21.15 6.8 23 7.25 23 7.25 C23 7.25 21.15 7.7 20.25 8.6 C19.35 9.5 19 11.5 19 11.5 C19 11.5 18.65 9.5 17.75 8.6 C16.85 7.7 15 7.25 15 7.25 C15 7.25 16.85 6.8 17.75 5.9 C18.65 5 19 3 19 3Z"/>
+                                <!-- sparkle เล็กล่างซ้าย -->
+                                <path d="M5 14.5 C5 14.5 5.3 16 6 16.7 C6.7 17.4 8.25 17.75 8.25 17.75 C8.25 17.75 6.7 18.1 6 18.8 C5.3 19.5 5 21 5 21 C5 21 4.7 19.5 4 18.8 C3.3 18.1 1.75 17.75 1.75 17.75 C1.75 17.75 3.3 17.4 4 16.7 C4.7 16 5 14.5 5 14.5Z"/>
                             </svg>
                         </div>
                         <h2>สวัสดี, <?= htmlspecialchars($currentUsername) ?>!</h2>
