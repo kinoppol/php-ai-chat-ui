@@ -583,6 +583,19 @@ tr:hover td{background:var(--hover-bg)}
         <strong><?= e($adminUsername) ?></strong>
         Administrator
     </div>
+
+    <?php
+        // version จากเวลา commit ล่าสุด: v0.yyMMddHHii
+        $gitTs  = @shell_exec('git -C ' . escapeshellarg(__DIR__) . ' log -1 --format=%ci 2>NUL');
+        $gitTs  = trim((string)$gitTs);
+        $verStr = 'v0.dev';
+        if ($gitTs && ($dt = date_create($gitTs))) {
+            $verStr = 'v0.' . date_format($dt, 'ymdHi');
+        }
+    ?>
+    <div style="text-align:center;padding:10px 0 14px;font-size:10px;color:var(--muted);letter-spacing:.04em;opacity:.6">
+        <?= e($verStr) ?>
+    </div>
 </div>
 
 <!-- ═══════ MAIN ═══════ -->
