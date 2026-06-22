@@ -16,7 +16,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /var/www/php-ai-chai-ui #เปลี่ยน Path ตรงนี้ให้ถูกต้อง
+            cd /var/www/php-ai-chat-ui #เปลี่ยน Path ตรงนี้ให้ถูกต้อง
             git fetch origin
             git reset --hard origin/main
             # composer install --no-dev --optimize-autoloader (ถ้ามี)
