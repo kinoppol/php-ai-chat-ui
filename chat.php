@@ -100,7 +100,9 @@ if (!isset($_SESSION['chat_user_id']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     $stmt->execute([$loginUsername]);
     $user = $stmt->fetch();
 
-    if ($user && $user['is_active'] && password_verify($loginPassword, $user['password'])) {
+    if ($user && password_verify($loginPassword, $user['password']) && !$user['is_active']) {
+        $loginError = 'บัญชีของคุณยังรอการอนุมัติจาก Admin กรุณารอสักครู่';
+    } elseif ($user && $user['is_active'] && password_verify($loginPassword, $user['password'])) {
         $_SESSION['chat_user_id']       = $user['id'];
         $_SESSION['chat_username']      = $loginUsername;
         $_SESSION['chat_display_name']  = $user['display_name'] ?: $loginUsername;
