@@ -259,6 +259,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'del_conv' && $authenticated && $_SE
 // ─── SSE STREAMING ENDPOINT ───────────────────────────────────────────────────
 if (isset($_GET['stream']) && $_GET['stream'] == '1' && $authenticated) {
 
+    set_time_limit(0);                          // ไม่จำกัดเวลา PHP execution สำหรับ streaming
     @ini_set('output_buffering', 'off');
     @ini_set('zlib.output_compression', false);
     @ini_set('implicit_flush', true);
@@ -393,7 +394,7 @@ if (isset($_GET['stream']) && $_GET['stream'] == '1' && $authenticated) {
             'Authorization: Bearer ' . $apiKey,
             'Accept: text/event-stream',
         ],
-        CURLOPT_TIMEOUT        => 120,
+        CURLOPT_TIMEOUT        => 0,    // ไม่จำกัด — ปล่อยให้ streaming จบเองตาม AI response
         CURLOPT_CONNECTTIMEOUT => 30,
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_WRITEFUNCTION  => function ($ch, $chunk) use (&$fullResponse, &$totalTokens) {
