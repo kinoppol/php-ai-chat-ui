@@ -162,10 +162,11 @@ if (isset($_SESSION['chat_user_id'])) {
     $currentUserId   = (int)$_SESSION['chat_user_id'];
     $currentUsername = $_SESSION['chat_display_name'] ?? $_SESSION['chat_username'] ?? 'U';
     // Load token data for display
-    $__tr = chatDb()->prepare('SELECT token_limit, tokens_used, token_reset_hours, tokens_reset_at FROM users WHERE id = ?');
+    $__tr = chatDb()->prepare('SELECT token_limit, tokens_used, tokens_total, token_reset_hours, tokens_reset_at FROM users WHERE id = ?');
     $__tr->execute([$currentUserId]);
-    $__td           = $__tr->fetch(PDO::FETCH_ASSOC) ?: [];
-    $userTokensUsed = (int)($__td['tokens_used'] ?? 0);
+    $__td            = $__tr->fetch(PDO::FETCH_ASSOC) ?: [];
+    $userTokensUsed  = (int)($__td['tokens_used']  ?? 0);
+    $userTokensTotal = (int)($__td['tokens_total'] ?? 0);
     // NULL = ใช้ค่ากลาง (global setting)
     $userTokenLimit = resolveTokenSetting(
         isset($__td['token_limit']) && $__td['token_limit'] !== null ? (int)$__td['token_limit'] : null,
@@ -1882,8 +1883,10 @@ endif;
         }
 
         // init on page load — ใช้ secs_left ที่ PHP คำนวณไว้
-        window._rtTokensUsed = TOKEN_USED_INIT;
-        window._rtSecsLeft   = TOKEN_SECS_LEFT_INIT;
+        window._rtTokensUsed  = TOKEN_USED_INIT;
+        window._rtTokenLimit  = TOKEN_LIMIT;
+        window._rtTokensTotal = <?= (int)($userTokensTotal ?? 0) ?>;
+        window._rtSecsLeft    = TOKEN_SECS_LEFT_INIT;
         updateDonut(TOKEN_USED_INIT, TOKEN_LIMIT, TOKEN_SECS_LEFT_INIT);
 
         // refresh after each stream completes — uses exact DB value
@@ -1894,9 +1897,17 @@ endif;
                 .then(text => {
                     let d;
                     try { d = JSON.parse(text); } catch(_) { return; }
-                    window._rtTokensUsed = d.used;
-                    window._rtSecsLeft   = d.secs_left;
+                    // cache latest values
+                    window._rtTokensUsed  = d.used;
+                    window._rtSecsLeft    = d.secs_left;
+                    window._rtTokensTotal = d.total;
+                    window._rtTokenLimit  = d.limit;
                     updateDonut(d.used, d.limit, d.secs_left);
+                    // if popup is open, re-render it with fresh data
+                    const pop = document.getElementById('tokenPopup');
+                    if (pop && pop.classList.contains('open') && typeof renderPopup === 'function') {
+                        renderPopup(d.used, d.limit, d.total, d.secs_left);
+                    }
                 })
                 .catch(() => {});
         }
@@ -2319,11 +2330,20 @@ endif;
         const pop = document.getElementById('tokenPopup');
         pop.classList.add('open');
 
+        // แสดงค่า cache ทันที (ถ้ามี) เพื่อไม่ให้ popup ว่าง
+        const cu = window._rtTokensUsed, cl = window._rtTokenLimit, ct = window._rtTokensTotal, cs = window._rtSecsLeft;
+        if (cu != null && cl != null) renderPopup(cu, cl, ct ?? 0, cs ?? null);
+
         // ดึงค่าล่าสุดจาก API
         fetch('?api=token_status')
             .then(r => r.text())
             .then(text => {
                 let d; try { d = JSON.parse(text); } catch(_) { return; }
+                // อัปเดต cache ด้วย
+                window._rtTokensUsed  = d.used;
+                window._rtTokenLimit  = d.limit;
+                window._rtTokensTotal = d.total;
+                window._rtSecsLeft    = d.secs_left;
                 _popupSecsLeft = d.secs_left;
                 renderPopup(d.used, d.limit, d.total, d.secs_left);
                 startPopupTimer();
