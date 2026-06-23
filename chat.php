@@ -1868,14 +1868,23 @@ endif;
         }
 
         // init on page load — ใช้ secs_left ที่ PHP คำนวณไว้
+        window._rtTokensUsed = TOKEN_USED_INIT;
+        window._rtSecsLeft   = TOKEN_SECS_LEFT_INIT;
         updateDonut(TOKEN_USED_INIT, TOKEN_LIMIT, TOKEN_SECS_LEFT_INIT);
 
-        // refresh after each stream completes
+        // refresh after each stream completes — uses exact DB value
         function refreshTokenStatus() {
             if (TOKEN_LIMIT <= 0) return;
-            $.getJSON('chat.php?api=token_status', function(d) {
-                updateDonut(d.used, d.limit, d.secs_left);
-            });
+            fetch('chat.php?api=token_status')
+                .then(r => r.text())
+                .then(text => {
+                    let d;
+                    try { d = JSON.parse(text); } catch(_) { return; }
+                    window._rtTokensUsed = d.used;
+                    window._rtSecsLeft   = d.secs_left;
+                    updateDonut(d.used, d.limit, d.secs_left);
+                })
+                .catch(() => {});
         }
 
         // ── State ────────────────────────────────────────────────────────
@@ -2103,6 +2112,9 @@ endif;
 
             const assistantMsgId = appendMessage('assistant', '', true);
             let assistantContent = '';
+            // real-time token estimation: snapshot of current usage before this message
+            const _streamUsedBase = TOKEN_LIMIT > 0 ? (window._rtTokensUsed ?? TOKEN_USED_INIT) : 0;
+            let   _streamChars    = 0;
 
             try {
                 const convTitle = userMessage.substring(0, 80);
@@ -2141,7 +2153,16 @@ endif;
                                 loadHistoryList();
                             }
                             if (parsed.error)   throw new Error(parsed.error);
-                            if (parsed.content) { assistantContent += parsed.content; updateMessageContent(assistantMsgId, assistantContent); }
+                            if (parsed.content) {
+                                assistantContent += parsed.content;
+                                updateMessageContent(assistantMsgId, assistantContent);
+                                // real-time donut update (estimated tokens)
+                                if (TOKEN_LIMIT > 0) {
+                                    _streamChars += parsed.content.length;
+                                    const _est = _streamUsedBase + Math.ceil(_streamChars / 3.5);
+                                    updateDonut(_est, TOKEN_LIMIT, window._rtSecsLeft ?? null);
+                                }
+                            }
                         } catch (e) { if (e.message && e.message !== 'Unexpected token') throw e; }
                     }
                 }
