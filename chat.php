@@ -464,19 +464,23 @@ if (isset($_GET['stream']) && $_GET['stream'] == '1' && $authenticated) {
         $outputChars = mb_strlen($fullResponse);
         $totalTokens = (int)ceil(($inputChars + $outputChars) / 3.5);
     }
-    if ($totalTokens > 0 && $currentUserId) {
+    if ($currentUserId) {
+        // อัปเดต DB (ถ้ามี token ที่ใช้)
+        if ($totalTokens > 0) {
+            try {
+                chatDb()->prepare('UPDATE users SET tokens_used = tokens_used + ?, tokens_total = tokens_total + ? WHERE id = ?')
+                    ->execute([$totalTokens, $totalTokens, $currentUserId]);
+            } catch (Throwable) { /* log silently */ }
+        }
+        // ส่งค่าปัจจุบันกลับ client เสมอ (ไม่ว่า UPDATE สำเร็จหรือไม่)
         try {
-            // tokens_used: นับตามช่วงเวลา (reset ได้), tokens_total: สะสมตลอดชีพ (สถิติ)
-            chatDb()->prepare('UPDATE users SET tokens_used = tokens_used + ?, tokens_total = tokens_total + ? WHERE id = ?')
-                ->execute([$totalTokens, $totalTokens, $currentUserId]);
-            // ส่งค่า tokens_used ใหม่กลับ client เพื่ออัปเดต donut โดยตรง
-            $newRow = chatDb()->prepare('SELECT tokens_used, tokens_total FROM users WHERE id = ?');
-            $newRow->execute([$currentUserId]);
-            $nr = $newRow->fetch(PDO::FETCH_ASSOC) ?: [];
+            $nr = chatDb()->prepare('SELECT tokens_used, tokens_total FROM users WHERE id = ?');
+            $nr->execute([$currentUserId]);
+            $nrRow = $nr->fetch(PDO::FETCH_ASSOC) ?: [];
             echo 'data: ' . json_encode([
                 'token_update' => true,
-                'tokens_used'  => (int)($nr['tokens_used']  ?? 0),
-                'tokens_total' => (int)($nr['tokens_total'] ?? 0),
+                'tokens_used'  => (int)($nrRow['tokens_used']  ?? 0),
+                'tokens_total' => (int)($nrRow['tokens_total'] ?? 0),
             ]) . "\n\n";
             flush();
         } catch (Throwable) { /* log silently */ }
