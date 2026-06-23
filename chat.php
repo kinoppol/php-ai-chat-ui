@@ -1367,8 +1367,8 @@ endif;
         }
         .token-donut svg { width: 28px; height: 28px; transform: rotate(-90deg); }
         .token-donut .track { fill: none; stroke: var(--border2); stroke-width: 4; }
-        .token-donut .fill  { fill: none; stroke-width: 4; stroke-linecap: round;
-                              stroke-dasharray: 0 100; transition: stroke-dasharray .6s ease, stroke .4s; }
+        .token-donut .fill  { fill: none; stroke-width: 4; stroke-linecap: butt;
+                              transition: stroke-dasharray .4s ease, stroke .3s; }
         .token-donut .pct-lbl {
             position: absolute; inset: 0;
             display: flex; align-items: center; justify-content: center;
@@ -1418,8 +1418,8 @@ endif;
         .tp-donut-big { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
         .tp-donut-big svg { width: 72px; height: 72px; transform: rotate(-90deg); }
         .tp-donut-big .track { fill: none; stroke: var(--border2, rgba(255,255,255,.1)); stroke-width: 5; }
-        .tp-donut-big .fill  { fill: none; stroke-width: 5; stroke-linecap: round;
-                               stroke-dasharray: 0 100; transition: stroke-dasharray .8s ease, stroke .4s; }
+        .tp-donut-big .fill  { fill: none; stroke-width: 5; stroke-linecap: butt;
+                               transition: stroke-dasharray .5s ease, stroke .3s; }
         .tp-donut-big .pct-center {
             position: absolute; inset: 0;
             display: flex; align-items: center; justify-content: center;
@@ -1867,8 +1867,8 @@ endif;
 
             const fill = document.getElementById('donutFill');
             if (fill) {
-                fill.setAttribute('stroke-dasharray', pct + ' ' + (100 - pct));
-                fill.setAttribute('stroke', color);
+                fill.style.strokeDasharray = pct + ' ' + (100 - pct);
+                fill.style.stroke = color;
             }
             const pctLbl   = document.getElementById('donutPct');
             const usedLbl  = document.getElementById('tokenUsedLbl');
@@ -2362,7 +2362,7 @@ endif;
         const color  = pct >= 90 ? '#f87171' : pct >= 70 ? '#f97316' : '#10a37f';
 
         // donut ใหญ่
-        document.getElementById('popupDonutFill').setAttribute('stroke-dasharray', `${pct} ${100 - pct}`);
+        document.getElementById('popupDonutFill').style.strokeDasharray = `${pct} ${100 - pct}`;
         document.getElementById('popupDonutFill').style.stroke = color;
         document.getElementById('popupPct').textContent = pct + '%';
         document.getElementById('popupPct').style.color = color;
