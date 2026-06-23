@@ -1111,16 +1111,11 @@ endif;
             color: #a5b4fc;
             white-space: pre-wrap;
             word-break: break-all;
-            max-height: 180px;
-            overflow: hidden;
+            max-height: 340px;
+            overflow-y: auto;
+            overflow-x: auto;
             position: relative;
-        }
-        .streaming-code-body::after {
-            content: '';
-            position: absolute;
-            bottom: 0; left: 0; right: 0;
-            height: 48px;
-            background: linear-gradient(transparent, var(--code-bg));
+            scroll-behavior: smooth;
         }
         
         .copy-code-btn {
@@ -2021,6 +2016,10 @@ endif;
                 $el.find('pre code').each(function() { hljs.highlightElement(this); });
             } else {
                 $el.html(renderStreaming(content) + '<span class="streaming-cursor"></span>');
+                // auto-scroll ทุก streaming-code-body ให้แสดงบรรทัดล่าสุด
+                $el.find('.streaming-code-body').each(function() {
+                    this.scrollTop = this.scrollHeight;
+                });
             }
             scrollToBottom();
         }
