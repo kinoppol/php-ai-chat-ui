@@ -469,6 +469,16 @@ if (isset($_GET['stream']) && $_GET['stream'] == '1' && $authenticated) {
             // tokens_used: นับตามช่วงเวลา (reset ได้), tokens_total: สะสมตลอดชีพ (สถิติ)
             chatDb()->prepare('UPDATE users SET tokens_used = tokens_used + ?, tokens_total = tokens_total + ? WHERE id = ?')
                 ->execute([$totalTokens, $totalTokens, $currentUserId]);
+            // ส่งค่า tokens_used ใหม่กลับ client เพื่ออัปเดต donut โดยตรง
+            $newRow = chatDb()->prepare('SELECT tokens_used, tokens_total FROM users WHERE id = ?');
+            $newRow->execute([$currentUserId]);
+            $nr = $newRow->fetch(PDO::FETCH_ASSOC) ?: [];
+            echo 'data: ' . json_encode([
+                'token_update' => true,
+                'tokens_used'  => (int)($nr['tokens_used']  ?? 0),
+                'tokens_total' => (int)($nr['tokens_total'] ?? 0),
+            ]) . "\n\n";
+            flush();
         } catch (Throwable) { /* log silently */ }
     }
 
@@ -2152,7 +2162,16 @@ endif;
                                 // refresh sidebar after first message
                                 loadHistoryList();
                             }
-                            if (parsed.error)   throw new Error(parsed.error);
+                            if (parsed.error) throw new Error(parsed.error);
+                            if (parsed.token_update) {
+                                // exact token count from DB — update donut with real value
+                                window._rtTokensUsed = parsed.tokens_used;
+                                updateDonut(parsed.tokens_used, TOKEN_LIMIT, window._rtSecsLeft ?? null);
+                                // also refresh popup if it's open
+                                if (document.getElementById('tokenPopup')?.classList.contains('open')) {
+                                    openTokenPopup();
+                                }
+                            }
                             if (parsed.content) {
                                 assistantContent += parsed.content;
                                 updateMessageContent(assistantMsgId, assistantContent);
@@ -2298,12 +2317,14 @@ endif;
 
         // ดึงค่าล่าสุดจาก API
         fetch('?api=token_status')
-            .then(r => r.json())
-            .then(d => {
+            .then(r => r.text())
+            .then(text => {
+                let d; try { d = JSON.parse(text); } catch(_) { return; }
                 _popupSecsLeft = d.secs_left;
                 renderPopup(d.used, d.limit, d.total, d.secs_left);
                 startPopupTimer();
-            });
+            })
+            .catch(() => {});
     }
 
     function closeTokenPopup() {
