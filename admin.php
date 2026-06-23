@@ -161,6 +161,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: admin.php?page=tokens&saved=1'); exit;
     }
 
+    /* ── Test API connection (AJAX) ── */
+    if (isset($_GET['api']) && $_GET['api'] === 'test_connection') {
+        header('Content-Type: application/json');
+        $testKey = trim($_POST['api_key'] ?? getSetting('api_key',''));
+        $testUrl = rtrim(trim($_POST['base_url'] ?? getSetting('base_url','')), '/');
+        if (empty($testUrl)) { echo json_encode(['ok'=>false,'msg'=>'Base URL ว่างเปล่า']); exit; }
+        $ch = curl_init($testUrl . '/models');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $testKey, 'Content-Type: application/json'],
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+        $body = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+        if ($err) {
+            echo json_encode(['ok'=>false,'msg'=>'เชื่อมต่อไม่ได้: ' . $err]);
+        } elseif ($http >= 200 && $http < 300) {
+            $data   = json_decode($body, true);
+            $count  = isset($data['data']) ? count($data['data']) : '?';
+            echo json_encode(['ok'=>true,'msg'=>"เชื่อมต่อสำเร็จ ✓  (HTTP {$http} · พบ {$count} model)"]);
+        } elseif ($http === 401) {
+            echo json_encode(['ok'=>false,'msg'=>"API Key ไม่ถูกต้อง (HTTP 401)"]);
+        } else {
+            echo json_encode(['ok'=>false,'msg'=>"Server ตอบกลับ HTTP {$http}"]);
+        }
+        exit;
+    }
+
     if (isset($_POST['save_settings'])) {
         foreach (['api_key','base_url','model','system_prompt','max_tokens','site_name','registration_note'] as $f) {
             if (array_key_exists($f, $_POST)) setSetting($f, trim($_POST[$f]));
@@ -691,14 +722,23 @@ tr:hover td{background:var(--hover-bg)}
         <div class="panel-body">
             <div class="fg">
                 <label>API Key</label>
-                <input type="text" name="api_key" value="<?= e(getSetting('api_key')) ?>" placeholder="sk-... หรือ ollama">
+                <input type="text" name="api_key" id="settingApiKey" value="<?= e(getSetting('api_key')) ?>" placeholder="sk-... หรือ ollama">
             </div>
             <div class="fg">
                 <label>Base URL</label>
-                <input type="text" name="base_url" value="<?= e(getSetting('base_url','http://localhost:11434/v1')) ?>">
+                <input type="text" name="base_url" id="settingBaseUrl" value="<?= e(getSetting('base_url','http://localhost:11434/v1')) ?>">
                 <small>OpenAI: https://api.openai.com/v1 &nbsp;|&nbsp; Ollama: http://localhost:11434/v1 &nbsp;|&nbsp; OpenRouter: https://openrouter.ai/api/v1</small>
             </div>
-            <div class="form-grid">
+
+            <!-- ── Test Connection ── -->
+            <div style="display:flex;align-items:center;gap:12px;margin-top:4px;flex-wrap:wrap">
+                <button type="button" class="btn btn-ghost" id="testConnBtn" onclick="testApiConnection()">
+                    🔌 ทดสอบการเชื่อมต่อ
+                </button>
+                <div id="testConnResult" style="font-size:13px;display:none;padding:7px 14px;border-radius:8px;font-weight:500"></div>
+            </div>
+
+            <div class="form-grid" style="margin-top:16px">
                 <div class="fg">
                     <label>Default Model <small style="font-weight:400;text-transform:none">(model ที่เลือกเมื่อเปิด chat)</small></label>
                     <input type="text" name="model" value="<?= e(getSetting('model','llama3:8b')) ?>">
@@ -1496,6 +1536,41 @@ function openEditModel(id, name, label, isActive) {
     chk.onchange = syncModelActiveLabel;
     syncModelActiveLabel();
     document.getElementById('editModelModal').classList.add('open');
+}
+
+// ── Test API Connection ───────────────────────────────────────────────────────
+async function testApiConnection() {
+    const btn    = document.getElementById('testConnBtn');
+    const result = document.getElementById('testConnResult');
+    const apiKey = document.getElementById('settingApiKey')?.value ?? '';
+    const baseUrl= document.getElementById('settingBaseUrl')?.value ?? '';
+
+    btn.disabled    = true;
+    btn.textContent = '⏳ กำลังทดสอบ…';
+    result.style.display = 'none';
+
+    try {
+        const fd = new FormData();
+        fd.append('api_key',  apiKey);
+        fd.append('base_url', baseUrl);
+        const res  = await fetch('?api=test_connection', { method: 'POST', body: fd });
+        const data = await res.json();
+
+        result.style.display      = 'block';
+        result.style.background   = data.ok ? 'rgba(16,163,127,.15)'  : 'rgba(239,68,68,.12)';
+        result.style.border       = '1px solid ' + (data.ok ? 'rgba(16,163,127,.4)' : 'rgba(239,68,68,.3)');
+        result.style.color        = data.ok ? '#34d399' : '#f87171';
+        result.textContent        = data.msg;
+    } catch(e) {
+        result.style.display    = 'block';
+        result.style.background = 'rgba(239,68,68,.12)';
+        result.style.border     = '1px solid rgba(239,68,68,.3)';
+        result.style.color      = '#f87171';
+        result.textContent      = 'เกิดข้อผิดพลาด: ' + e.message;
+    } finally {
+        btn.disabled    = false;
+        btn.textContent = '🔌 ทดสอบการเชื่อมต่อ';
+    }
 }
 
 // ── Drag-to-reorder models ────────────────────────────────────────────────────
