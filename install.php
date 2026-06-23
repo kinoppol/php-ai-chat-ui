@@ -222,7 +222,45 @@ input:focus{border-color:#5436da;box-shadow:0 0 0 3px rgba(84,54,218,.15)}
     </div>
     <?php endif; ?>
 
-    <form method="POST">
+    <?php
+        // ── System Requirements Check ──────────────────────────────────
+        $reqs = [
+            ['label'=>'PHP ≥ 8.0',       'ok'=> version_compare(PHP_VERSION,'8.0.0','>='), 'val'=> PHP_VERSION],
+            ['label'=>'PDO MySQL',        'ok'=> extension_loaded('pdo_mysql'),              'val'=> extension_loaded('pdo_mysql') ? 'ติดตั้งแล้ว' : 'ไม่พบ — ต้องติดตั้ง php-mysql'],
+            ['label'=>'cURL',             'ok'=> function_exists('curl_init'),               'val'=> function_exists('curl_init') ? 'ติดตั้งแล้ว' : 'ไม่พบ — ต้องติดตั้ง php-curl (แนะนำ)'],
+            ['label'=>'mbstring',         'ok'=> extension_loaded('mbstring'),               'val'=> extension_loaded('mbstring') ? 'ติดตั้งแล้ว' : 'ไม่พบ — ต้องติดตั้ง php-mbstring'],
+            ['label'=>'JSON',             'ok'=> function_exists('json_encode'),             'val'=> function_exists('json_encode') ? 'ติดตั้งแล้ว' : 'ไม่พบ'],
+            ['label'=>'allow_url_fopen', 'ok'=> (bool)ini_get('allow_url_fopen'),           'val'=> ini_get('allow_url_fopen') ? 'เปิดอยู่' : 'ปิดอยู่ (ต้องเปิดถ้าไม่มี cURL)'],
+        ];
+        $hasWarning = in_array(false, array_column($reqs, 'ok'));
+        $critFail   = !extension_loaded('pdo_mysql'); // PDO คือ required จริงๆ
+    ?>
+    <div style="margin-bottom:24px">
+        <div style="font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">
+            🔍 System Requirements
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+        <?php foreach ($reqs as $r): ?>
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px;padding:7px 12px;border-radius:8px;background:<?= $r['ok'] ? 'rgba(16,163,127,.08)' : 'rgba(239,68,68,.1)' ?>;border:1px solid <?= $r['ok'] ? 'rgba(16,163,127,.2)' : 'rgba(239,68,68,.25)' ?>">
+                <span><?= $r['ok'] ? '✅' : '❌' ?> <?= $r['label'] ?></span>
+                <span style="color:<?= $r['ok'] ? '#34d399' : '#f87171' ?>;font-size:12px"><?= htmlspecialchars($r['val']) ?></span>
+            </div>
+        <?php endforeach; ?>
+        </div>
+        <?php if ($critFail): ?>
+        <div style="margin-top:10px;padding:10px 14px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:13px;color:#f87171">
+            ❌ <strong>PDO MySQL ไม่พร้อมใช้งาน</strong> — ไม่สามารถดำเนินการติดตั้งได้<br>
+            <span style="opacity:.8">Debian/Ubuntu: <code>sudo apt install php-mysql && sudo systemctl restart apache2</code></span>
+        </div>
+        <?php elseif (!function_exists('curl_init')): ?>
+        <div style="margin-top:10px;padding:10px 14px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:8px;font-size:13px;color:#fbbf24">
+            ⚠️ <strong>cURL ไม่ได้ติดตั้ง</strong> — ระบบจะใช้ <code>file_get_contents</code> แทน (ทำงานได้แต่ช้ากว่า)<br>
+            <span style="opacity:.8">แนะนำ: <code>sudo apt install php-curl && sudo systemctl restart apache2</code></span>
+        </div>
+        <?php endif; ?>
+    </div>
+
+    <form method="POST" <?= $critFail ? 'onsubmit="return false"' : '' ?>>
         <div class="section-title">📡 การเชื่อมต่อฐานข้อมูล</div>
         <div class="row-2">
             <div>
