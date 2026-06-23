@@ -169,35 +169,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $testUrl = rtrim(trim($_POST['base_url'] ?? getSetting('base_url','')), '/');
             if (empty($testUrl)) { echo json_encode(['ok'=>false,'msg'=>'กรุณากรอก Base URL ก่อนทดสอบ']); exit; }
 
-            $ch = curl_init($testUrl . '/models');
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 10,
-                CURLOPT_CONNECTTIMEOUT => 5,
-                CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $testKey, 'Content-Type: application/json', 'Accept: application/json'],
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_MAXREDIRS      => 3,
-            ]);
-            $body    = curl_exec($ch);
-            $http    = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlErr = curl_error($ch);
-            $curlNo  = curl_errno($ch);
-            curl_close($ch);
+            $endpoint = $testUrl . '/models';
+            $headers  = ['Authorization: Bearer ' . $testKey, 'Content-Type: application/json', 'Accept: application/json'];
+            $http = 0; $body = false; $curlErr = '';
 
-            if ($curlErr) {
-                $friendly = match(true) {
-                    $curlNo === CURLE_COULDNT_CONNECT  => 'ไม่สามารถเชื่อมต่อกับ Server ได้ — ตรวจสอบ IP/Port และ Firewall',
-                    $curlNo === CURLE_OPERATION_TIMEOUTED,
-                    $curlNo === CURLE_COULDNT_RESOLVE_HOST => 'หมดเวลาเชื่อมต่อ — Server ไม่ตอบสนองภายใน 10 วินาที',
-                    default => 'เชื่อมต่อไม่ได้: ' . $curlErr,
-                };
-                echo json_encode(['ok'=>false,'msg'=>$friendly, 'detail'=>$curlErr]);
-                exit;
+            if (function_exists('curl_init')) {
+                // ── cURL path ──────────────────────────────────────────
+                $ch = curl_init($endpoint);
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_TIMEOUT        => 10,
+                    CURLOPT_CONNECTTIMEOUT => 5,
+                    CURLOPT_HTTPHEADER     => $headers,
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_MAXREDIRS      => 3,
+                ]);
+                $body    = curl_exec($ch);
+                $http    = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlNo  = curl_errno($ch);
+                $curlErr = curl_error($ch);
+                curl_close($ch);
+
+                if ($curlErr) {
+                    $friendly = match(true) {
+                        $curlNo === CURLE_COULDNT_CONNECT       => 'ไม่สามารถเชื่อมต่อกับ Server ได้ — ตรวจสอบ IP/Port และ Firewall',
+                        $curlNo === CURLE_OPERATION_TIMEOUTED,
+                        $curlNo === CURLE_COULDNT_RESOLVE_HOST  => 'หมดเวลาเชื่อมต่อ — Server ไม่ตอบสนองภายใน 10 วินาที',
+                        default                                  => 'เชื่อมต่อไม่ได้: ' . $curlErr,
+                    };
+                    echo json_encode(['ok'=>false,'msg'=>$friendly]);
+                    exit;
+                }
+            } else {
+                // ── file_get_contents fallback (ไม่มี cURL) ────────────
+                $ctx  = stream_context_create(['http'=>[
+                    'method'          => 'GET',
+                    'header'          => implode("\r\n", $headers),
+                    'timeout'         => 10,
+                    'ignore_errors'   => true,
+                ]]);
+                $body = @file_get_contents($endpoint, false, $ctx);
+                if ($body === false) {
+                    $err = error_get_last()['message'] ?? 'unknown';
+                    // แปลงข้อความ PHP warning เป็นภาษาไทย
+                    if (str_contains($err, 'Connection refused') || str_contains($err, 'failed to open')) {
+                        echo json_encode(['ok'=>false,'msg'=>'ไม่สามารถเชื่อมต่อกับ Server ได้ — ตรวจสอบ IP/Port และ Firewall']);
+                    } elseif (str_contains($err, 'timed out')) {
+                        echo json_encode(['ok'=>false,'msg'=>'หมดเวลาเชื่อมต่อ — Server ไม่ตอบสนองภายใน 10 วินาที']);
+                    } else {
+                        echo json_encode(['ok'=>false,'msg'=>'เชื่อมต่อไม่ได้: ' . $err]);
+                    }
+                    exit;
+                }
+                // ดึง HTTP status จาก $http_response_header
+                if (!empty($http_response_header[0]) && preg_match('#HTTP/\S+ (\d+)#', $http_response_header[0], $m)) {
+                    $http = (int)$m[1];
+                } else {
+                    $http = 200;
+                }
             }
 
             if ($http === 0) {
-                echo json_encode(['ok'=>false,'msg'=>'ไม่ได้รับการตอบกลับจาก Server (HTTP 0) — ตรวจสอบ Base URL']);
+                echo json_encode(['ok'=>false,'msg'=>'ไม่ได้รับการตอบกลับจาก Server — ตรวจสอบ Base URL']);
                 exit;
             }
 
