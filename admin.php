@@ -163,31 +163,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /* ── Test API connection (AJAX) ── */
     if (isset($_GET['api']) && $_GET['api'] === 'test_connection') {
-        header('Content-Type: application/json');
-        $testKey = trim($_POST['api_key'] ?? getSetting('api_key',''));
-        $testUrl = rtrim(trim($_POST['base_url'] ?? getSetting('base_url','')), '/');
-        if (empty($testUrl)) { echo json_encode(['ok'=>false,'msg'=>'Base URL ว่างเปล่า']); exit; }
-        $ch = curl_init($testUrl . '/models');
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 8,
-            CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $testKey, 'Content-Type: application/json'],
-            CURLOPT_SSL_VERIFYPEER => false,
-        ]);
-        $body = curl_exec($ch);
-        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err  = curl_error($ch);
-        curl_close($ch);
-        if ($err) {
-            echo json_encode(['ok'=>false,'msg'=>'เชื่อมต่อไม่ได้: ' . $err]);
-        } elseif ($http >= 200 && $http < 300) {
-            $data   = json_decode($body, true);
-            $count  = isset($data['data']) ? count($data['data']) : '?';
-            echo json_encode(['ok'=>true,'msg'=>"เชื่อมต่อสำเร็จ ✓  (HTTP {$http} · พบ {$count} model)"]);
-        } elseif ($http === 401) {
-            echo json_encode(['ok'=>false,'msg'=>"API Key ไม่ถูกต้อง (HTTP 401)"]);
-        } else {
-            echo json_encode(['ok'=>false,'msg'=>"Server ตอบกลับ HTTP {$http}"]);
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            $testKey = trim($_POST['api_key'] ?? getSetting('api_key',''));
+            $testUrl = rtrim(trim($_POST['base_url'] ?? getSetting('base_url','')), '/');
+            if (empty($testUrl)) { echo json_encode(['ok'=>false,'msg'=>'กรุณากรอก Base URL ก่อนทดสอบ']); exit; }
+
+            $ch = curl_init($testUrl . '/models');
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 10,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $testKey, 'Content-Type: application/json', 'Accept: application/json'],
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS      => 3,
+            ]);
+            $body    = curl_exec($ch);
+            $http    = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr = curl_error($ch);
+            $curlNo  = curl_errno($ch);
+            curl_close($ch);
+
+            if ($curlErr) {
+                $friendly = match(true) {
+                    $curlNo === CURLE_COULDNT_CONNECT  => 'ไม่สามารถเชื่อมต่อกับ Server ได้ — ตรวจสอบ IP/Port และ Firewall',
+                    $curlNo === CURLE_OPERATION_TIMEOUTED,
+                    $curlNo === CURLE_COULDNT_RESOLVE_HOST => 'หมดเวลาเชื่อมต่อ — Server ไม่ตอบสนองภายใน 10 วินาที',
+                    default => 'เชื่อมต่อไม่ได้: ' . $curlErr,
+                };
+                echo json_encode(['ok'=>false,'msg'=>$friendly, 'detail'=>$curlErr]);
+                exit;
+            }
+
+            if ($http === 0) {
+                echo json_encode(['ok'=>false,'msg'=>'ไม่ได้รับการตอบกลับจาก Server (HTTP 0) — ตรวจสอบ Base URL']);
+                exit;
+            }
+
+            $data = json_decode((string)$body, true);
+
+            if ($http >= 200 && $http < 300) {
+                $count = isset($data['data']) && is_array($data['data']) ? count($data['data']) : '—';
+                echo json_encode(['ok'=>true,'msg'=>"เชื่อมต่อสำเร็จ ✓  (HTTP {$http} · พบ {$count} model)"]);
+            } elseif ($http === 401 || $http === 403) {
+                echo json_encode(['ok'=>false,'msg'=>"API Key ไม่ถูกต้องหรือไม่มีสิทธิ์เข้าถึง (HTTP {$http})"]);
+            } elseif ($http === 404) {
+                echo json_encode(['ok'=>false,'msg'=>"ไม่พบ Endpoint — ตรวจสอบ Base URL ว่าลงท้ายด้วย /v1 (HTTP 404)"]);
+            } elseif ($http >= 500) {
+                $serverMsg = isset($data['error']['message']) ? ': ' . $data['error']['message'] : '';
+                echo json_encode(['ok'=>false,'msg'=>"Server ฝั่ง AI เกิดข้อผิดพลาด (HTTP {$http}){$serverMsg}"]);
+            } else {
+                echo json_encode(['ok'=>false,'msg'=>"Server ตอบกลับ HTTP {$http} — ไม่สามารถเชื่อมต่อได้"]);
+            }
+        } catch (Throwable $ex) {
+            echo json_encode(['ok'=>false,'msg'=>'เกิดข้อผิดพลาดภายใน: ' . $ex->getMessage()]);
         }
         exit;
     }
@@ -1554,19 +1584,22 @@ async function testApiConnection() {
         fd.append('api_key',  apiKey);
         fd.append('base_url', baseUrl);
         const res  = await fetch('?api=test_connection', { method: 'POST', body: fd });
-        const data = await res.json();
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch(_) { data = { ok: false, msg: `Server ตอบกลับข้อมูลที่ไม่ใช่ JSON (HTTP ${res.status}) — ตรวจสอบ Base URL` }; }
 
-        result.style.display      = 'block';
-        result.style.background   = data.ok ? 'rgba(16,163,127,.15)'  : 'rgba(239,68,68,.12)';
-        result.style.border       = '1px solid ' + (data.ok ? 'rgba(16,163,127,.4)' : 'rgba(239,68,68,.3)');
-        result.style.color        = data.ok ? '#34d399' : '#f87171';
-        result.textContent        = data.msg;
+        result.style.display    = 'block';
+        result.style.background = data.ok ? 'rgba(16,163,127,.15)' : 'rgba(239,68,68,.12)';
+        result.style.border     = '1px solid ' + (data.ok ? 'rgba(16,163,127,.4)' : 'rgba(239,68,68,.3)');
+        result.style.color      = data.ok ? '#34d399' : '#f87171';
+        result.textContent      = data.msg;
     } catch(e) {
         result.style.display    = 'block';
         result.style.background = 'rgba(239,68,68,.12)';
         result.style.border     = '1px solid rgba(239,68,68,.3)';
         result.style.color      = '#f87171';
-        result.textContent      = 'เกิดข้อผิดพลาด: ' + e.message;
+        result.textContent      = 'ไม่สามารถส่งคำขอได้: ' + e.message;
     } finally {
         btn.disabled    = false;
         btn.textContent = '🔌 ทดสอบการเชื่อมต่อ';
