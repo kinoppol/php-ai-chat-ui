@@ -723,7 +723,8 @@ tr:hover td{background:var(--hover-bg)}
 .modal-bg.open{display:flex}
 .modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;width:480px;max-width:92vw;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
 .modal h3{font-size:16px;font-weight:700;padding:22px 28px 16px;border-bottom:1px solid var(--border);margin:0;display:flex;align-items:center;gap:8px;flex-shrink:0}
-.modal form,.modal>.modal-body{flex:1;overflow-y:auto;padding:20px 28px;min-height:0}
+.modal form{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.modal .modal-body{flex:1;overflow-y:auto;padding:20px 28px;min-height:0}
 .modal-footer{display:flex;gap:10px;flex-wrap:wrap;padding:16px 28px;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg2)}
 
 /* ── Drag handle (models) ── */
@@ -1039,26 +1040,28 @@ tr:hover td{background:var(--hover-bg)}
             <form method="POST">
                 <input type="hidden" name="edit_api_server" value="1">
                 <input type="hidden" name="edit_server_id" id="editServerId">
-                <div class="fg"><label>ชื่อ Server</label><input type="text" name="edit_server_name" id="editServerName" required></div>
-                <div class="fg"><label>Base URL</label><input type="text" name="base_url" id="settingBaseUrl" required></div>
-                <div class="fg"><label>API Key</label><input type="text" name="api_key" id="settingApiKey"></div>
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
-                    <button type="button" class="btn btn-ghost btn-sm" id="testConnBtn" onclick="testApiConnection()">🔌 ทดสอบการเชื่อมต่อ</button>
-                    <div id="testConnResult" style="font-size:13px;display:none;padding:6px 12px;border-radius:8px;font-weight:500"></div>
-                </div>
-                <!-- Discovered models list -->
-                <div id="discoveredModelsBox" style="display:none;border:1px solid rgba(99,102,241,.3);border-radius:10px;overflow:hidden;margin-bottom:4px">
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(99,102,241,.08);border-bottom:1px solid rgba(99,102,241,.2)">
-                        <strong style="font-size:13px;color:#818cf8">🤖 Models ที่พบ</strong>
-                        <div style="display:flex;gap:6px">
-                            <button type="button" class="btn btn-ghost btn-sm" onclick="selectAllDiscovered(true)" style="font-size:11px;padding:3px 8px">เลือกทั้งหมด</button>
-                            <button type="button" class="btn btn-ghost btn-sm" onclick="selectAllDiscovered(false)" style="font-size:11px;padding:3px 8px">ยกเลิก</button>
-                        </div>
+                <div class="modal-body">
+                    <div class="fg"><label>ชื่อ Server</label><input type="text" name="edit_server_name" id="editServerName" required></div>
+                    <div class="fg"><label>Base URL</label><input type="text" name="base_url" id="settingBaseUrl" required></div>
+                    <div class="fg"><label>API Key</label><input type="text" name="api_key" id="settingApiKey"></div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+                        <button type="button" class="btn btn-ghost btn-sm" id="testConnBtn" onclick="testApiConnection()">🔌 ทดสอบการเชื่อมต่อ</button>
+                        <div id="testConnResult" style="font-size:13px;display:none;padding:6px 12px;border-radius:8px;font-weight:500"></div>
                     </div>
-                    <div id="discoveredModelsList" style="max-height:220px;overflow-y:auto;padding:6px 0"></div>
-                    <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center">
-                        <button type="button" class="btn btn-primary btn-sm" onclick="importSelectedModels()">📥 นำเข้า Models ที่เลือก</button>
-                        <span id="importResult" style="font-size:12px;color:var(--muted)"></span>
+                    <!-- Discovered models list -->
+                    <div id="discoveredModelsBox" style="display:none;border:1px solid rgba(99,102,241,.3);border-radius:10px;overflow:hidden;margin-bottom:4px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(99,102,241,.08);border-bottom:1px solid rgba(99,102,241,.2)">
+                            <strong style="font-size:13px;color:#818cf8">🤖 Models ที่พบ</strong>
+                            <div style="display:flex;gap:6px">
+                                <button type="button" class="btn btn-ghost btn-sm" onclick="selectAllDiscovered(true)" style="font-size:11px;padding:3px 8px">เลือกทั้งหมด</button>
+                                <button type="button" class="btn btn-ghost btn-sm" onclick="selectAllDiscovered(false)" style="font-size:11px;padding:3px 8px">ยกเลิก</button>
+                            </div>
+                        </div>
+                        <div id="discoveredModelsList" style="max-height:220px;overflow-y:auto;padding:6px 0"></div>
+                        <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="importSelectedModels()">📥 นำเข้า Models ที่เลือก</button>
+                            <span id="importResult" style="font-size:12px;color:var(--muted)"></span>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1076,24 +1079,26 @@ tr:hover td{background:var(--hover-bg)}
             <form method="POST">
                 <input type="hidden" name="edit_model" value="1">
                 <input type="hidden" name="edit_model_id" id="editModelId">
-                <div class="fg"><label>ชื่อ Model (API)</label><input type="text" name="edit_model_name" id="editModelName" required></div>
-                <div class="fg"><label>Label (แสดงผล)</label><input type="text" name="edit_model_label" id="editModelLabel" placeholder="เว้นว่างใช้ชื่อ Model"></div>
-                <div class="fg">
-                    <label>ย้ายไป Server</label>
-                    <select name="edit_model_server_id" id="editModelServerId">
-                        <option value="">— ไม่ผูก (Global Fallback) —</option>
-                        <?php foreach ($serverList as $_srv): ?>
-                        <option value="<?= $_srv['id'] ?>"><?= e($_srv['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="fg">
-                    <label style="margin-bottom:8px;display:block">สถานะการใช้งาน</label>
-                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
-                        <input type="checkbox" name="edit_model_active" id="editModelActive" value="1" style="width:18px;height:18px;accent-color:#10a37f;cursor:pointer">
-                        <span id="editModelActiveLabel" style="font-size:13px"></span>
-                    </label>
-                    <small style="color:var(--muted)">ปิดการใช้งาน = ซ่อนจาก dropdown ในหน้า Chat แต่ยังเก็บข้อมูลไว้</small>
+                <div class="modal-body">
+                    <div class="fg"><label>ชื่อ Model (API)</label><input type="text" name="edit_model_name" id="editModelName" required></div>
+                    <div class="fg"><label>Label (แสดงผล)</label><input type="text" name="edit_model_label" id="editModelLabel" placeholder="เว้นว่างใช้ชื่อ Model"></div>
+                    <div class="fg">
+                        <label>ย้ายไป Server</label>
+                        <select name="edit_model_server_id" id="editModelServerId">
+                            <option value="">— ไม่ผูก (Global Fallback) —</option>
+                            <?php foreach ($serverList as $_srv): ?>
+                            <option value="<?= $_srv['id'] ?>"><?= e($_srv['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="fg">
+                        <label style="margin-bottom:8px;display:block">สถานะการใช้งาน</label>
+                        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+                            <input type="checkbox" name="edit_model_active" id="editModelActive" value="1" style="width:18px;height:18px;accent-color:#10a37f;cursor:pointer">
+                            <span id="editModelActiveLabel" style="font-size:13px"></span>
+                        </label>
+                        <small style="color:var(--muted)">ปิดการใช้งาน = ซ่อนจาก dropdown ในหน้า Chat แต่ยังเก็บข้อมูลไว้</small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-primary">💾 บันทึก</button>
@@ -1424,35 +1429,37 @@ tr:hover td{background:var(--hover-bg)}
             <form method="POST">
                 <input type="hidden" name="edit_user" value="1">
                 <input type="hidden" name="edit_uid" id="editUid">
-                <div class="fg">
-                    <label>Username (แก้ไขไม่ได้)</label>
-                    <input type="text" id="editUsernameShow" disabled style="opacity:.5">
-                </div>
-                <div class="fg">
-                    <label>ชื่อที่แสดง</label>
-                    <input type="text" name="edit_display" id="editDisplay" placeholder="ชื่อ-นามสกุล">
-                </div>
-                <div class="fg">
-                    <label>บทบาท</label>
-                    <select name="edit_role" id="editRole">
-                        <option value="user">User — ใช้งาน Chat</option>
-                        <option value="admin">Admin — จัดการระบบ</option>
-                    </select>
-                </div>
-                <div class="fg">
-                    <label>Token Limit <small style="font-weight:400;text-transform:none;color:var(--muted)">เว้นว่าง = ใช้ค่ากลาง</small></label>
-                    <input type="number" name="edit_token_limit" id="editTokenLimit" min="0" step="1000">
-                    <small id="editTokenLimitHint" style="color:var(--muted)">เว้นว่าง = ใช้ค่ากลาง · 0 = ไม่จำกัดสำหรับ user นี้ · 1K token ≈ 750 คำ</small>
-                </div>
-                <div class="fg">
-                    <label>รีเซ็ตทุก (ชั่วโมง) <small style="font-weight:400;text-transform:none;color:var(--muted)">เว้นว่าง = ใช้ค่ากลาง</small></label>
-                    <input type="number" name="edit_token_reset_hours" id="editTokenResetHours" min="0" step="1">
-                    <small id="editResetHint" style="color:var(--muted)">เว้นว่าง = ใช้ค่ากลาง · 0 = ไม่รีเซ็ต · 24 = รายวัน · 168 = รายสัปดาห์</small>
-                </div>
-                <hr class="divider">
-                <div class="fg">
-                    <label>เปลี่ยนรหัสผ่าน <small style="font-weight:400;text-transform:none">(เว้นว่างถ้าไม่ต้องการเปลี่ยน)</small></label>
-                    <input type="password" name="edit_password" placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)" autocomplete="new-password">
+                <div class="modal-body">
+                    <div class="fg">
+                        <label>Username (แก้ไขไม่ได้)</label>
+                        <input type="text" id="editUsernameShow" disabled style="opacity:.5">
+                    </div>
+                    <div class="fg">
+                        <label>ชื่อที่แสดง</label>
+                        <input type="text" name="edit_display" id="editDisplay" placeholder="ชื่อ-นามสกุล">
+                    </div>
+                    <div class="fg">
+                        <label>บทบาท</label>
+                        <select name="edit_role" id="editRole">
+                            <option value="user">User — ใช้งาน Chat</option>
+                            <option value="admin">Admin — จัดการระบบ</option>
+                        </select>
+                    </div>
+                    <div class="fg">
+                        <label>Token Limit <small style="font-weight:400;text-transform:none;color:var(--muted)">เว้นว่าง = ใช้ค่ากลาง</small></label>
+                        <input type="number" name="edit_token_limit" id="editTokenLimit" min="0" step="1000">
+                        <small id="editTokenLimitHint" style="color:var(--muted)">เว้นว่าง = ใช้ค่ากลาง · 0 = ไม่จำกัดสำหรับ user นี้ · 1K token ≈ 750 คำ</small>
+                    </div>
+                    <div class="fg">
+                        <label>รีเซ็ตทุก (ชั่วโมง) <small style="font-weight:400;text-transform:none;color:var(--muted)">เว้นว่าง = ใช้ค่ากลาง</small></label>
+                        <input type="number" name="edit_token_reset_hours" id="editTokenResetHours" min="0" step="1">
+                        <small id="editResetHint" style="color:var(--muted)">เว้นว่าง = ใช้ค่ากลาง · 0 = ไม่รีเซ็ต · 24 = รายวัน · 168 = รายสัปดาห์</small>
+                    </div>
+                    <hr class="divider">
+                    <div class="fg">
+                        <label>เปลี่ยนรหัสผ่าน <small style="font-weight:400;text-transform:none">(เว้นว่างถ้าไม่ต้องการเปลี่ยน)</small></label>
+                        <input type="password" name="edit_password" placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)" autocomplete="new-password">
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-primary">💾 บันทึก</button>
