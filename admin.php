@@ -179,44 +179,50 @@ if (!$adminId) {
 // ─── AJAX: sync discovered models (selected=active, unselected=inactive) ──────
 if (isset($_GET['api']) && $_GET['api'] === 'import_models') {
     header('Content-Type: application/json; charset=utf-8');
-    $serverId = (int)($_POST['server_id'] ?? 0);
-    $selected = json_decode($_POST['models'] ?? '[]', true);
-    // allDiscovered = full list from test_connection so we know what to deactivate
-    $allFound = json_decode($_POST['all_models'] ?? '[]', true);
-    if (!is_array($selected)) $selected = [];
-    if (!is_array($allFound))  $allFound  = [];
+    try {
+        $serverId = (int)($_POST['server_id'] ?? 0);
+        $selected = json_decode($_POST['models']     ?? '[]', true);
+        $allFound = json_decode($_POST['all_models'] ?? '[]', true);
+        if (!is_array($selected)) $selected = [];
+        if (!is_array($allFound)) $allFound  = [];
 
-    $srvVal  = $serverId > 0 ? $serverId : null;
-    $maxOrd  = (int)db()->query('SELECT COALESCE(MAX(sort_order),0) FROM `models`')->fetchColumn();
-    $activated = 0; $deactivated = 0;
+        $srvVal    = $serverId > 0 ? $serverId : null;
+        $maxOrd    = (int)db()->query('SELECT COALESCE(MAX(sort_order),0) FROM `models`')->fetchColumn();
+        $activated = 0; $deactivated = 0;
 
-    // Upsert selected → is_active=1
-    foreach ($selected as $name) {
-        $name = trim((string)$name);
-        if (!$name) continue;
-        $exists = db()->prepare('SELECT id FROM `models` WHERE name=? AND (server_id=? OR (server_id IS NULL AND ? IS NULL))');
-        $exists->execute([$name, $srvVal, $srvVal]);
-        if ($exists->fetchColumn()) {
-            db()->prepare('UPDATE `models` SET is_active=1, server_id=? WHERE name=? AND (server_id=? OR (server_id IS NULL AND ? IS NULL))')
-                ->execute([$srvVal, $name, $srvVal, $srvVal]);
-        } else {
-            db()->prepare('INSERT INTO `models` (name, label, is_active, sort_order, server_id) VALUES (?,?,1,?,?)')
-                ->execute([$name, $name, ++$maxOrd, $srvVal]);
+        // Upsert selected → is_active=1, server_id=this server
+        // ON DUPLICATE KEY handles name UNIQUE constraint regardless of server_id
+        foreach ($selected as $name) {
+            $name = trim((string)$name);
+            if (!$name) continue;
+            db()->prepare(
+                'INSERT INTO `models` (name, label, is_active, sort_order, server_id)
+                 VALUES (?,?,1,?,?)
+                 ON DUPLICATE KEY UPDATE is_active=1, server_id=VALUES(server_id)'
+            )->execute([$name, $name, ++$maxOrd, $srvVal]);
+            $activated++;
         }
-        $activated++;
-    }
 
-    // Deactivate unselected (from full discovered list) that belong to this server
-    $unselected = array_diff($allFound, $selected);
-    foreach ($unselected as $name) {
-        $name = trim((string)$name);
-        if (!$name) continue;
-        $rows = db()->prepare('UPDATE `models` SET is_active=0 WHERE name=? AND (server_id=? OR (server_id IS NULL AND ? IS NULL))');
-        $rows->execute([$name, $srvVal, $srvVal]);
-        $deactivated += $rows->rowCount();
-    }
+        // Deactivate unselected models that belong to this server
+        $unselected = array_diff(array_map('trim', $allFound), array_map('trim', $selected));
+        foreach ($unselected as $name) {
+            $name = trim((string)$name);
+            if (!$name) continue;
+            $stmt = db()->prepare(
+                $srvVal !== null
+                    ? 'UPDATE `models` SET is_active=0 WHERE name=? AND server_id=?'
+                    : 'UPDATE `models` SET is_active=0 WHERE name=? AND server_id IS NULL'
+            );
+            $params = $srvVal !== null ? [$name, $srvVal] : [$name];
+            $stmt->execute($params);
+            $deactivated += $stmt->rowCount();
+        }
 
-    echo json_encode(['ok'=>true,'activated'=>$activated,'deactivated'=>$deactivated]); exit;
+        echo json_encode(['ok'=>true,'activated'=>$activated,'deactivated'=>$deactivated]);
+    } catch (Throwable $ex) {
+        echo json_encode(['ok'=>false,'msg'=>$ex->getMessage()]);
+    }
+    exit;
 }
 
 // ─── POST actions ─────────────────────────────────────────────────────────────
