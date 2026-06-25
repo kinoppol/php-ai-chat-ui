@@ -331,11 +331,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['save_settings'])) {
-        foreach (['api_key','base_url','model','system_prompt','max_tokens','site_name','registration_note'] as $f) {
+        foreach (['api_key','base_url','model','max_tokens'] as $f) {
+            if (array_key_exists($f, $_POST)) setSetting($f, trim($_POST[$f]));
+        }
+        header('Location: admin.php?page=api_servers&tab=settings&msg=' . urlencode('บันทึก Global API สำเร็จ')); exit;
+    }
+
+    if (isset($_POST['save_general_settings'])) {
+        foreach (['site_name','system_prompt','registration_note'] as $f) {
             if (array_key_exists($f, $_POST)) setSetting($f, trim($_POST[$f]));
         }
         setSetting('allow_registration', isset($_POST['allow_registration']) ? '1' : '0');
-        header('Location: admin.php?page=api_servers&tab=settings&msg=' . urlencode('บันทึกการตั้งค่าสำเร็จ')); exit;
+        header('Location: admin.php?page=general_settings&msg=' . urlencode('บันทึกการตั้งค่าสำเร็จ')); exit;
     }
 
     /* ── Add user ── */
@@ -751,6 +758,11 @@ tr:hover td{background:var(--hover-bg)}
         <a href="?page=api_servers" class="<?= in_array($page,['api_servers','settings','models'])?'active':'' ?>"><span class="ico">🖥️</span>API Servers &amp; Models</a>
     </nav>
 
+    <div class="sidebar-section">ระบบ</div>
+    <nav>
+        <a href="?page=general_settings" class="<?= $page==='general_settings'?'active':'' ?>"><span class="ico">⚙️</span>ตั้งค่าระบบ</a>
+    </nav>
+
     <div class="sidebar-section">ผู้ใช้งาน</div>
     <nav>
         <?php $pendingCount = (int)db()->query('SELECT COUNT(*) FROM users WHERE is_active=0')->fetchColumn(); ?>
@@ -762,7 +774,7 @@ tr:hover td{background:var(--hover-bg)}
         <a href="?page=conversations" class="<?= $page==='conversations'?'active':'' ?>"> <span class="ico">💬</span>การสนทนา</a>
     </nav>
 
-    <div class="sidebar-section">ระบบ</div>
+    <div class="sidebar-section">ลิงก์ด่วน</div>
     <nav>
         <a href="chat.php" target="_blank"><span class="ico">🚀</span>เปิด Chat</a>
         <a href="?page=logout" style="color:#f87171"><span class="ico">🚪</span>ออกจากระบบ</a>
@@ -891,7 +903,7 @@ tr:hover td{background:var(--hover-bg)}
     <div class="tab-bar">
         <button class="tab-btn <?= $activeTab==='servers'?'active':'' ?>" onclick="switchTab('servers')">🖥️ API Servers</button>
         <button class="tab-btn <?= $activeTab==='models'?'active':'' ?>"  onclick="switchTab('models')">🤖 AI Models</button>
-        <button class="tab-btn <?= $activeTab==='settings'?'active':'' ?>" onclick="switchTab('settings')">🔧 ตั้งค่าทั่วไป</button>
+        <button class="tab-btn <?= $activeTab==='settings'?'active':'' ?>" onclick="switchTab('settings')">🔧 Global API</button>
     </div>
     <script>
     function switchTab(tab) {
@@ -1132,7 +1144,7 @@ tr:hover td{background:var(--hover-bg)}
     <form method="POST">
     <input type="hidden" name="save_settings" value="1">
     <div class="panel">
-        <div class="panel-head">🔑 Global API (ค่า Fallback)</div>
+        <div class="panel-head">🔑 Global API Fallback</div>
         <div class="panel-body">
             <div style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.6">
                 ⚠️ ค่านี้ใช้เป็น <strong>fallback</strong> เมื่อ Model ไม่ได้ผูกกับ Server ใดใน tab 🖥️ API Servers
@@ -1162,11 +1174,34 @@ tr:hover td{background:var(--hover-bg)}
             </div>
         </div>
     </div>
+    <button type="submit" class="btn btn-primary">💾 บันทึก</button>
+    </form>
+    </div><!-- /tab-settings -->
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         GENERAL SETTINGS
+    ════════════════════════════════════════════════════════════════════ -->
+    <?php elseif ($page === 'general_settings'):
+        $gsMsg = e($_GET['msg'] ?? '');
+    ?>
+    <?php if ($gsMsg): ?>
+    <div class="alert alert-success" style="margin-bottom:16px"><?= $gsMsg ?></div>
+    <?php endif; ?>
+
+    <form method="POST">
+    <input type="hidden" name="save_general_settings" value="1">
     <div class="panel">
         <div class="panel-head">💬 ตั้งค่าทั่วไป</div>
         <div class="panel-body">
-            <div class="fg"><label>ชื่อเว็บไซต์</label><input type="text" name="site_name" value="<?= e(getSetting('site_name','AI Chat')) ?>"></div>
-            <div class="fg"><label>System Prompt</label><textarea name="system_prompt" rows="5"><?= e(getSetting('system_prompt')) ?></textarea></div>
+            <div class="fg">
+                <label>ชื่อเว็บไซต์</label>
+                <input type="text" name="site_name" value="<?= e(getSetting('site_name','AI Chat')) ?>">
+            </div>
+            <div class="fg">
+                <label>System Prompt</label>
+                <textarea name="system_prompt" rows="6"><?= e(getSetting('system_prompt')) ?></textarea>
+                <small>ส่งเป็น system message ทุกครั้งที่มีการสนทนา</small>
+            </div>
         </div>
     </div>
     <div class="panel">
@@ -1187,7 +1222,6 @@ tr:hover td{background:var(--hover-bg)}
     </div>
     <button type="submit" class="btn btn-primary">💾 บันทึกการตั้งค่า</button>
     </form>
-    </div><!-- /tab-settings -->
 
     <!-- ════════════════════════════════════════════════════════════════════
          USERS
