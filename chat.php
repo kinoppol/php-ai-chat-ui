@@ -1739,12 +1739,14 @@ endif;
                         <?php
                         if (!empty($__modelsData)) {
                             foreach ($__modelsData as $m):
-                                $displayName = $m['label'] ?: $m['name'];
-                                if (!empty($m['server_nick'])) {
-                                    $displayName = '(' . $m['server_nick'] . ') ' . $displayName;
-                                }
+                                $modelLabel = $m['label'] ?: $m['name'];
                         ?>
-                        <div class="model-option" data-model="<?= htmlspecialchars($m['name']) ?>"><?= htmlspecialchars($displayName) ?></div>
+                        <div class="model-option" data-model="<?= htmlspecialchars($m['name']) ?>">
+                            <?php if (!empty($m['server_nick'])): ?>
+                            <span style="font-size:11px;opacity:.6;margin-right:4px">(<?= htmlspecialchars($m['server_nick']) ?>)</span>
+                            <?php endif; ?>
+                            <strong><?= htmlspecialchars($modelLabel) ?></strong>
+                        </div>
                         <?php   endforeach;
                         } else {
                             foreach (array_filter(array_map('trim', explode(',', $modelsList))) as $m):
@@ -2432,7 +2434,8 @@ endif;
         $('#modelSelector').on('click', function(e) { e.stopPropagation(); $modelDropdown.toggleClass('show'); });
         $('.model-option').on('click', function() {
             currentModel = $(this).data('model');
-            $('#currentModel').text(currentModel);
+            const label = $(this).find('strong').text() || currentModel;
+            $('#currentModel').text(label);
             $('.model-option').removeClass('active');
             $(this).addClass('active');
             $modelDropdown.removeClass('show');
