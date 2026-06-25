@@ -235,6 +235,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: admin.php?page=tokens&saved=1'); exit; // tokens page stays separate
     }
 
+    /* ── Import models from discovered list (AJAX) ── */
+    if (isset($_GET['api']) && $_GET['api'] === 'import_models') {
+        header('Content-Type: application/json; charset=utf-8');
+        $serverId  = (int)($_POST['server_id'] ?? 0);
+        $names     = json_decode($_POST['models'] ?? '[]', true);
+        if (!is_array($names) || empty($names)) { echo json_encode(['ok'=>false,'msg'=>'ไม่มีข้อมูล']); exit; }
+        $imported = 0; $skipped = 0;
+        $maxOrd = (int)db()->query('SELECT COALESCE(MAX(sort_order),0) FROM `models`')->fetchColumn();
+        foreach ($names as $name) {
+            $name = trim((string)$name);
+            if (!$name) continue;
+            try {
+                $srvVal = $serverId > 0 ? $serverId : null;
+                db()->prepare('INSERT IGNORE INTO `models` (name, label, sort_order, server_id) VALUES (?,?,?,?)')
+                    ->execute([$name, $name, ++$maxOrd, $srvVal]);
+                $imported++;
+            } catch (Throwable) { $skipped++; }
+        }
+        echo json_encode(['ok'=>true,'imported'=>$imported,'skipped'=>$skipped]); exit;
+    }
+
     /* ── Test API connection (AJAX) ── */
     if (isset($_GET['api']) && $_GET['api'] === 'test_connection') {
         header('Content-Type: application/json; charset=utf-8');
@@ -312,8 +333,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $data = json_decode((string)$body, true);
 
             if ($http >= 200 && $http < 300) {
-                $count = isset($data['data']) && is_array($data['data']) ? count($data['data']) : '—';
-                echo json_encode(['ok'=>true,'msg'=>"เชื่อมต่อสำเร็จ ✓  (HTTP {$http} · พบ {$count} model)"]);
+                // Extract model list (OpenAI-compatible: data[].id, Ollama: models[].name/model)
+                $rawModels = [];
+                if (isset($data['data']) && is_array($data['data'])) {
+                    foreach ($data['data'] as $m) { $rawModels[] = $m['id'] ?? ''; }
+                } elseif (isset($data['models']) && is_array($data['models'])) {
+                    foreach ($data['models'] as $m) { $rawModels[] = $m['name'] ?? $m['model'] ?? ''; }
+                }
+                $rawModels = array_values(array_filter($rawModels));
+                sort($rawModels);
+                echo json_encode(['ok'=>true,'msg'=>"เชื่อมต่อสำเร็จ ✓  (HTTP {$http} · พบ ".count($rawModels)." model)",'models'=>$rawModels]);
             } elseif ($http === 401 || $http === 403) {
                 echo json_encode(['ok'=>false,'msg'=>"API Key ไม่ถูกต้องหรือไม่มีสิทธิ์เข้าถึง (HTTP {$http})"]);
             } elseif ($http === 404) {
@@ -1008,9 +1037,24 @@ tr:hover td{background:var(--hover-bg)}
                 <div class="fg"><label>ชื่อ Server</label><input type="text" name="edit_server_name" id="editServerName" required></div>
                 <div class="fg"><label>Base URL</label><input type="text" name="base_url" id="settingBaseUrl" required></div>
                 <div class="fg"><label>API Key</label><input type="text" name="api_key" id="settingApiKey"></div>
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
                     <button type="button" class="btn btn-ghost btn-sm" id="testConnBtn" onclick="testApiConnection()">🔌 ทดสอบการเชื่อมต่อ</button>
                     <div id="testConnResult" style="font-size:13px;display:none;padding:6px 12px;border-radius:8px;font-weight:500"></div>
+                </div>
+                <!-- Discovered models list -->
+                <div id="discoveredModelsBox" style="display:none;border:1px solid rgba(99,102,241,.3);border-radius:10px;overflow:hidden;margin-bottom:4px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(99,102,241,.08);border-bottom:1px solid rgba(99,102,241,.2)">
+                        <strong style="font-size:13px;color:#818cf8">🤖 Models ที่พบ</strong>
+                        <div style="display:flex;gap:6px">
+                            <button type="button" class="btn btn-ghost btn-sm" onclick="selectAllDiscovered(true)" style="font-size:11px;padding:3px 8px">เลือกทั้งหมด</button>
+                            <button type="button" class="btn btn-ghost btn-sm" onclick="selectAllDiscovered(false)" style="font-size:11px;padding:3px 8px">ยกเลิก</button>
+                        </div>
+                    </div>
+                    <div id="discoveredModelsList" style="max-height:220px;overflow-y:auto;padding:6px 0"></div>
+                    <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center">
+                        <button type="button" class="btn btn-primary btn-sm" onclick="importSelectedModels()">📥 นำเข้า Models ที่เลือก</button>
+                        <span id="importResult" style="font-size:12px;color:var(--muted)"></span>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-primary">💾 บันทึก</button>
@@ -1766,12 +1810,14 @@ function openEditModel(id, name, label, isActive, serverId) {
 async function testApiConnection() {
     const btn    = document.getElementById('testConnBtn');
     const result = document.getElementById('testConnResult');
+    const box    = document.getElementById('discoveredModelsBox');
     const apiKey = document.getElementById('settingApiKey')?.value ?? '';
     const baseUrl= document.getElementById('settingBaseUrl')?.value ?? '';
 
     btn.disabled    = true;
     btn.textContent = '⏳ กำลังทดสอบ…';
     result.style.display = 'none';
+    box.style.display    = 'none';
 
     try {
         const fd = new FormData();
@@ -1788,6 +1834,12 @@ async function testApiConnection() {
         result.style.border     = '1px solid ' + (data.ok ? 'rgba(16,163,127,.4)' : 'rgba(239,68,68,.3)');
         result.style.color      = data.ok ? '#34d399' : '#f87171';
         result.textContent      = data.msg;
+
+        // Show discovered models if any
+        if (data.ok && data.models && data.models.length > 0) {
+            renderDiscoveredModels(data.models);
+            box.style.display = 'block';
+        }
     } catch(e) {
         result.style.display    = 'block';
         result.style.background = 'rgba(239,68,68,.12)';
@@ -1797,6 +1849,50 @@ async function testApiConnection() {
     } finally {
         btn.disabled    = false;
         btn.textContent = '🔌 ทดสอบการเชื่อมต่อ';
+    }
+}
+
+function renderDiscoveredModels(models) {
+    const list = document.getElementById('discoveredModelsList');
+    list.innerHTML = models.map(m => `
+        <label style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-size:13px;transition:.1s" onmouseenter="this.style.background='var(--hover-bg)'" onmouseleave="this.style.background=''">
+            <input type="checkbox" value="${m}" checked style="width:15px;height:15px;accent-color:#818cf8;flex-shrink:0;cursor:pointer">
+            <code style="color:#818cf8;font-size:12px">${m}</code>
+        </label>`).join('');
+    document.getElementById('importResult').textContent = '';
+}
+
+function selectAllDiscovered(checked) {
+    document.querySelectorAll('#discoveredModelsList input[type=checkbox]').forEach(cb => cb.checked = checked);
+}
+
+async function importSelectedModels() {
+    const serverId = document.getElementById('editServerId')?.value ?? '';
+    const selected = [...document.querySelectorAll('#discoveredModelsList input[type=checkbox]:checked')].map(cb => cb.value);
+    if (!selected.length) { document.getElementById('importResult').textContent = 'กรุณาเลือก Model อย่างน้อย 1 รายการ'; return; }
+
+    const btn = document.querySelector('#discoveredModelsBox button[onclick="importSelectedModels()"]');
+    btn.disabled = true;
+    btn.textContent = '⏳ กำลังนำเข้า…';
+
+    try {
+        const fd = new FormData();
+        fd.append('server_id', serverId);
+        fd.append('models', JSON.stringify(selected));
+        const res  = await fetch('?api=import_models', { method:'POST', body: fd });
+        const data = await res.json();
+        const msg  = data.ok
+            ? `✓ นำเข้าสำเร็จ ${data.imported} รายการ${data.skipped ? ` (ข้าม ${data.skipped} รายการที่มีอยู่แล้ว)` : ''}`
+            : `เกิดข้อผิดพลาด: ${data.msg}`;
+        document.getElementById('importResult').textContent = msg;
+        document.getElementById('importResult').style.color = data.ok ? '#34d399' : '#f87171';
+        if (data.ok && data.imported > 0) {
+            // Reload page after short delay to show updated model list
+            setTimeout(() => location.reload(), 1200);
+        }
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📥 นำเข้า Models ที่เลือก';
     }
 }
 
