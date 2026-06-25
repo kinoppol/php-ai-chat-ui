@@ -749,7 +749,8 @@ tr:hover td{background:var(--hover-bg)}
 /* ── Modals ── */
 .modal-bg{display:none;position:fixed;inset:0;background:var(--overlay);z-index:200;align-items:center;justify-content:center}
 .modal-bg.open{display:flex}
-.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;width:480px;max-width:92vw;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;width:600px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+#editServerModal .modal{width:680px}
 .modal h3{font-size:16px;font-weight:700;padding:22px 28px 16px;border-bottom:1px solid var(--border);margin:0;display:flex;align-items:center;gap:8px;flex-shrink:0}
 .modal form{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .modal .modal-body{flex:1;overflow-y:auto;padding:20px 28px;min-height:0}
@@ -1012,41 +1013,51 @@ tr:hover td{background:var(--hover-bg)}
         <div class="srv-actions">
             <form method="POST" style="display:inline"><input type="hidden" name="toggle_api_server" value="<?= $s['id'] ?>">
                 <button class="btn btn-ghost btn-sm"><?= $s['is_active'] ? '⏸ ปิด' : '▶ เปิด' ?></button></form>
-            <button class="btn btn-ghost btn-sm" onclick="openEditServer(<?= $s['id'] ?>, '<?= e(addslashes($s['name'])) ?>', '<?= e(addslashes($s['base_url'])) ?>', '<?= e(addslashes($s['api_key'])) ?>')">✏️ แก้ไข</button>
+            <button class="btn btn-ghost btn-sm" onclick="openEditServer(<?= $s['id'] ?>, '<?= e(addslashes($s['name'])) ?>', '<?= e(addslashes($s['base_url'])) ?>', '<?= e(addslashes($s['api_key'])) ?>')">✏️ แก้ไข / จัดการ Models</button>
             <form method="POST" onsubmit="return confirm('ลบ Server <?= e(addslashes($s['name'])) ?>?\nModels จะถูกย้ายไป Global')" style="display:inline">
                 <input type="hidden" name="delete_api_server" value="<?= $s['id'] ?>">
                 <button class="btn btn-danger btn-sm">🗑</button>
             </form>
         </div>
-        <div class="srv-models">
-            <?php if (empty($sModels)): ?>
-            <div class="srv-empty">ยังไม่มี Model — แก้ไข Server แล้วทดสอบการเชื่อมต่อเพื่อนำเข้า</div>
-            <?php else: ?>
-            <table>
-                <thead><tr><th>ชื่อ Model (API)</th><th>Label</th><th style="width:72px">สถานะ</th><th style="width:72px">จัดการ</th></tr></thead>
-                <tbody>
-                <?php foreach ($sModels as $m): ?>
-                <tr>
-                    <td><code style="color:#818cf8;font-size:12px"><?= e($m['name']) ?></code></td>
-                    <td style="color:var(--text2);font-size:12px"><?= e($m['label'] ?: $m['name']) ?></td>
-                    <td>
-                        <form method="POST" style="display:inline"><input type="hidden" name="toggle_model" value="<?= $m['id'] ?>">
-                            <button class="badge <?= $m['is_active'] ? 'b-on' : 'b-off' ?>" style="cursor:pointer;border:none;font-family:inherit;font-size:11px"><?= $m['is_active'] ? '● เปิด' : '○ ปิด' ?></button>
-                        </form>
-                    </td>
-                    <td><div style="display:flex;gap:4px">
-                        <button class="btn btn-ghost btn-sm" onclick="openEditModel(<?= $m['id'] ?>, '<?= e(addslashes($m['name'])) ?>', '<?= e(addslashes($m['label'])) ?>', <?= $m['is_active']?1:0 ?>, <?= (int)$s['id'] ?>)">✏️</button>
-                        <form method="POST" onsubmit="return confirm('ลบ <?= e(addslashes($m['name'])) ?>?')" style="display:inline">
-                            <input type="hidden" name="delete_model" value="<?= $m['id'] ?>"><button class="btn btn-danger btn-sm">🗑</button>
-                        </form>
-                    </div></td>
-                </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-            <?php endif; ?>
-        </div>
     </div>
+
+    <!-- Hidden model management section for server <?= $s['id'] ?> -->
+    <div id="srvModels_<?= $s['id'] ?>" style="display:none">
+        <?php if (empty($sModels)): ?>
+        <div style="padding:14px;color:var(--muted);font-size:13px;text-align:center;font-style:italic">
+            ยังไม่มี Model — ทดสอบการเชื่อมต่อด้านบนเพื่อนำเข้า
+        </div>
+        <?php else: ?>
+        <table style="width:100%;border-collapse:collapse">
+            <thead><tr>
+                <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">ชื่อ Model (API)</th>
+                <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Label</th>
+                <th style="width:72px;padding:6px 8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">สถานะ</th>
+                <th style="width:72px;padding:6px 8px"></th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($sModels as $m): ?>
+            <tr style="border-top:1px solid var(--border)">
+                <td style="padding:7px 12px"><code style="color:#818cf8;font-size:12px"><?= e($m['name']) ?></code></td>
+                <td style="padding:7px 12px;color:var(--text2);font-size:12px"><?= e($m['label'] ?: $m['name']) ?></td>
+                <td style="padding:7px 8px">
+                    <form method="POST" style="display:inline"><input type="hidden" name="toggle_model" value="<?= $m['id'] ?>">
+                        <button class="badge <?= $m['is_active'] ? 'b-on' : 'b-off' ?>" style="cursor:pointer;border:none;font-family:inherit;font-size:11px"><?= $m['is_active'] ? '● เปิด' : '○ ปิด' ?></button>
+                    </form>
+                </td>
+                <td style="padding:7px 8px"><div style="display:flex;gap:4px">
+                    <button class="btn btn-ghost btn-sm" onclick="openEditModel(<?= $m['id'] ?>, '<?= e(addslashes($m['name'])) ?>', '<?= e(addslashes($m['label'])) ?>', <?= $m['is_active']?1:0 ?>, <?= (int)$s['id'] ?>)">✏️</button>
+                    <form method="POST" onsubmit="return confirm('ลบ <?= e(addslashes($m['name'])) ?>?')" style="display:inline">
+                        <input type="hidden" name="delete_model" value="<?= $m['id'] ?>"><button class="btn btn-danger btn-sm">🗑</button>
+                    </form>
+                </div></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
+    </div>
+
     <?php endforeach; ?>
     </div><!-- /.srv-grid -->
 
@@ -1065,6 +1076,13 @@ tr:hover td{background:var(--hover-bg)}
                         <button type="button" class="btn btn-ghost btn-sm" id="testConnBtn" onclick="testApiConnection()">🔌 ทดสอบการเชื่อมต่อ</button>
                         <div id="testConnResult" style="font-size:13px;display:none;padding:6px 12px;border-radius:8px;font-weight:500"></div>
                     </div>
+                    <!-- Current models for this server -->
+                    <div style="margin-top:4px;margin-bottom:4px">
+                        <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">📋 Models ในระบบ</div>
+                        <div id="modalModelsList" style="border:1px solid var(--border2);border-radius:10px;overflow:hidden;background:var(--bg3);min-height:40px"></div>
+                    </div>
+                    <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+
                     <!-- Discovered models list -->
                     <div id="discoveredModelsBox" style="display:none;border:1px solid rgba(99,102,241,.3);border-radius:10px;overflow:hidden;margin-bottom:4px">
                         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(99,102,241,.08);border-bottom:1px solid rgba(99,102,241,.2)">
@@ -1131,7 +1149,15 @@ tr:hover td{background:var(--hover-bg)}
         document.getElementById('editServerName').value = name;
         document.getElementById('settingBaseUrl').value = url;
         document.getElementById('settingApiKey').value  = key;
-        document.getElementById('testConnResult').style.display = 'none';
+        document.getElementById('testConnResult').style.display  = 'none';
+        document.getElementById('discoveredModelsBox').style.display = 'none';
+        _allDiscoveredModels = [];
+
+        // Inject pre-rendered model list for this server
+        const src  = document.getElementById('srvModels_' + id);
+        const dest = document.getElementById('modalModelsList');
+        dest.innerHTML = src ? src.innerHTML : '<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center;font-style:italic">ยังไม่มี Model</div>';
+
         document.getElementById('editServerModal').classList.add('open');
     }
     </script>
