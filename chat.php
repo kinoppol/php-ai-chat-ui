@@ -503,6 +503,7 @@ $initTab = ($registerSuccess || $registerError) ? 'register' : 'login';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($siteName) ?> — เข้าสู่ระบบ</title>
     <?= themeAntiFlash() ?>
+    <?= themeFavicon() ?>
     <style>
         <?= themeVars() ?>
         *{margin:0;padding:0;box-sizing:border-box}
@@ -623,7 +624,7 @@ endif;
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?= htmlspecialchars($siteName) ?></title>
     <?= themeAntiFlash() ?>
-    
+    <?= themeFavicon() ?>
     <!-- External Libraries -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

@@ -9,6 +9,18 @@
  *   <?= themeScript() ?>      ← ใส่ก่อน </body>
  */
 
+/** Sparkle favicon (SVG data URI) — ใส่ใน <head> */
+function themeFavicon(): string {
+    $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+         . '<rect width="24" height="24" rx="6" fill="#5436da"/>'
+         . '<path d="M12 3L13.5 9.5L20 11L13.5 12.5L12 19L10.5 12.5L4 11L10.5 9.5Z" fill="white" opacity="0.95"/>'
+         . '<path d="M19 15L19.75 17.25L22 18L19.75 18.75L19 21L18.25 18.75L16 18L18.25 17.25Z" fill="white" opacity="0.75"/>'
+         . '<path d="M6 3L6.5 4.5L8 5L6.5 5.5L6 7L5.5 5.5L4 5L5.5 4.5Z" fill="white" opacity="0.65"/>'
+         . '</svg>';
+    $encoded = 'data:image/svg+xml,' . rawurlencode($svg);
+    return '<link rel="icon" type="image/svg+xml" href="' . $encoded . '">';
+}
+
 /** Anti-flash: ต้องรันก่อน CSS ทุกอย่างใน <head> */
 function themeAntiFlash(): string {
     return '<script>!function(){var s=localStorage.getItem("ai-theme")||"system",d=document.documentElement,r=s==="system"?(window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"):s;d.setAttribute("data-theme",r);d.setAttribute("data-theme-pref",s)}()</script>';

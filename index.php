@@ -35,6 +35,7 @@ require_once __DIR__ . '/theme.php';
 <title><?= e($siteName) ?> — AI Chat Platform</title>
 <meta name="description" content="ระบบแชท AI ที่ใช้งานง่าย รองรับ Ollama, OpenAI และ OpenRouter">
 <?= themeAntiFlash() ?>
+<?= themeFavicon() ?>
 <style>
 /* ── Reset & Base ─────────────────────────────────────────────────────────── */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }

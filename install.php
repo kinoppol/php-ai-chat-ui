@@ -156,6 +156,7 @@ require_once __DIR__ . '/theme.php';
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Chat — ติดตั้งระบบ</title>
 <?= themeAntiFlash() ?>
+<?= themeFavicon() ?>
 <style>
 <?= themeVars() ?>
 *{margin:0;padding:0;box-sizing:border-box}

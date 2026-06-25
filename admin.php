@@ -464,6 +464,7 @@ function renderLoginPage(string $error = ''): void { ?>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Admin Login — AI Chat</title>
 <?= themeAntiFlash() ?>
+<?= themeFavicon() ?>
 <style>
 <?= themeVars() ?>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -513,6 +514,7 @@ $siteName = getSetting('site_name', 'AI Chat');
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Admin — <?= e($siteName) ?></title>
 <?= themeAntiFlash() ?>
+<?= themeFavicon() ?>
 <style>
 <?= themeVars() ?>
 /* ── Reset ── */
