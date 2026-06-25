@@ -922,17 +922,16 @@ tr:hover td{background:var(--hover-bg)}
     <style>
     .srv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px;align-items:start}
     .srv-card{border:1px solid var(--border2);border-radius:14px;overflow:hidden;background:var(--bg2);display:flex;flex-direction:column}
-    .srv-head{display:flex;align-items:center;gap:10px;padding:13px 16px;background:var(--bg4);border-bottom:1px solid var(--border)}
-    .srv-title{font-weight:700;font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .srv-meta{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:4px 16px 10px 16px;background:var(--bg4);border-bottom:1px solid var(--border);font-size:12px}
-    .srv-meta code{color:#818cf8;font-size:11px;word-break:break-all}
+    .srv-head{display:flex;align-items:center;gap:10px;padding:16px 18px 10px;background:var(--bg4)}
+    .srv-status-ico{font-size:20px;flex-shrink:0}
+    .srv-title{font-weight:700;font-size:17px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .srv-meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:0 18px 10px;background:var(--bg4);border-bottom:1px solid var(--border);font-size:12px}
+    .srv-meta code{font-size:11px;word-break:break-all}
+    .srv-actions{display:flex;gap:6px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg4)}
     .srv-models{flex:1}
     .srv-models table{margin:0;border-radius:0;width:100%}
     .srv-models thead th{background:rgba(99,102,241,.04);font-size:11px;padding:6px 14px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
-    .add-model-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--border);background:rgba(99,102,241,.03)}
-    .add-model-bar input[type=text]{flex:1;min-width:130px;padding:6px 10px;font-size:13px;border-radius:7px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-family:inherit}
-    .add-model-bar input[type=text]:focus{outline:none;border-color:#818cf8}
-    .srv-empty{padding:16px;color:var(--muted);font-size:13px;text-align:center;border-top:1px dashed var(--border)}
+    .srv-empty{padding:16px;color:var(--muted);font-size:12px;text-align:center;font-style:italic}
     details>summary{list-style:none}.details>summary::-webkit-details-marker{display:none}
     </style>
 
@@ -973,36 +972,35 @@ tr:hover td{background:var(--hover-bg)}
     ?>
     <div class="srv-card">
         <div class="srv-head">
-            <span style="font-size:18px"><?= $s['is_active'] ? '🖥️' : '💤' ?></span>
+            <span class="srv-status-ico"><?= $s['is_active'] ? '🖥️' : '💤' ?></span>
             <span class="srv-title"><?= e($s['name']) ?></span>
-            <span class="badge <?= $s['is_active'] ? 'b-on' : 'b-off' ?>" style="font-size:11px"><?= $s['is_active'] ? '● เปิด' : '○ ปิด' ?></span>
-            <span style="margin-left:auto;font-size:12px;color:var(--muted)"><?= count($sModels) ?> model<?= count($sModels)!==1?'s':'' ?></span>
-            <div style="display:flex;gap:5px">
-                <form method="POST" style="display:inline"><input type="hidden" name="toggle_api_server" value="<?= $s['id'] ?>">
-                    <button class="btn btn-ghost btn-sm"><?= $s['is_active'] ? '⏸ ปิด' : '▶ เปิด' ?></button></form>
-                <button class="btn btn-ghost btn-sm" onclick="openEditServer(<?= $s['id'] ?>, '<?= e(addslashes($s['name'])) ?>', '<?= e(addslashes($s['base_url'])) ?>', '<?= e(addslashes($s['api_key'])) ?>')">✏️ แก้ไข</button>
-                <form method="POST" onsubmit="return confirm('ลบ Server <?= e(addslashes($s['name'])) ?>?\nModels จะถูกย้ายไป Global')" style="display:inline">
-                    <input type="hidden" name="delete_api_server" value="<?= $s['id'] ?>">
-                    <button class="btn btn-danger btn-sm">🗑</button>
-                </form>
-            </div>
         </div>
         <div class="srv-meta">
+            <span class="badge <?= $s['is_active'] ? 'b-on' : 'b-off' ?>"><?= $s['is_active'] ? '● เปิด' : '○ ปิด' ?></span>
             <span>🌐 <code><?= e($s['base_url']) ?></code></span>
-            <span style="color:var(--muted)">🔑 <code style="color:var(--muted)"><?= e(str_repeat('●', max(0,strlen($s['api_key'])-4)).substr($s['api_key'],-4)) ?></code></span>
+            <span>🔑 <code style="color:var(--muted)"><?= e(str_repeat('●', max(0,strlen($s['api_key'])-4)).substr($s['api_key'],-4)) ?></code></span>
+            <span style="margin-left:auto;color:var(--muted);font-size:12px"><?= count($sModels) ?> model<?= count($sModels)!==1?'s':'' ?></span>
         </div>
-
+        <div class="srv-actions">
+            <form method="POST" style="display:inline"><input type="hidden" name="toggle_api_server" value="<?= $s['id'] ?>">
+                <button class="btn btn-ghost btn-sm"><?= $s['is_active'] ? '⏸ ปิด' : '▶ เปิด' ?></button></form>
+            <button class="btn btn-ghost btn-sm" onclick="openEditServer(<?= $s['id'] ?>, '<?= e(addslashes($s['name'])) ?>', '<?= e(addslashes($s['base_url'])) ?>', '<?= e(addslashes($s['api_key'])) ?>')">✏️ แก้ไข</button>
+            <form method="POST" onsubmit="return confirm('ลบ Server <?= e(addslashes($s['name'])) ?>?\nModels จะถูกย้ายไป Global')" style="display:inline">
+                <input type="hidden" name="delete_api_server" value="<?= $s['id'] ?>">
+                <button class="btn btn-danger btn-sm">🗑</button>
+            </form>
+        </div>
         <div class="srv-models">
             <?php if (empty($sModels)): ?>
-            <div class="srv-empty">ยังไม่มี Model — เพิ่มด้านล่าง</div>
+            <div class="srv-empty">ยังไม่มี Model — แก้ไข Server แล้วทดสอบการเชื่อมต่อเพื่อนำเข้า</div>
             <?php else: ?>
             <table>
-                <thead><tr><th>ชื่อ Model (API)</th><th>Label (แสดงผล)</th><th style="width:80px">สถานะ</th><th style="width:90px">จัดการ</th></tr></thead>
+                <thead><tr><th>ชื่อ Model (API)</th><th>Label</th><th style="width:72px">สถานะ</th><th style="width:72px">จัดการ</th></tr></thead>
                 <tbody>
                 <?php foreach ($sModels as $m): ?>
                 <tr>
-                    <td><code style="color:#818cf8;font-size:13px"><?= e($m['name']) ?></code></td>
-                    <td style="color:var(--text2);font-size:13px"><?= e($m['label'] ?: $m['name']) ?></td>
+                    <td><code style="color:#818cf8;font-size:12px"><?= e($m['name']) ?></code></td>
+                    <td style="color:var(--text2);font-size:12px"><?= e($m['label'] ?: $m['name']) ?></td>
                     <td>
                         <form method="POST" style="display:inline"><input type="hidden" name="toggle_model" value="<?= $m['id'] ?>">
                             <button class="badge <?= $m['is_active'] ? 'b-on' : 'b-off' ?>" style="cursor:pointer;border:none;font-family:inherit;font-size:11px"><?= $m['is_active'] ? '● เปิด' : '○ ปิด' ?></button>
@@ -1019,15 +1017,6 @@ tr:hover td{background:var(--hover-bg)}
                 </tbody>
             </table>
             <?php endif; ?>
-            <div class="add-model-bar">
-                <form method="POST" style="display:contents">
-                    <input type="hidden" name="model_server_id" value="<?= $s['id'] ?>">
-                    <span style="font-size:12px;color:var(--muted);white-space:nowrap">➕ เพิ่ม Model:</span>
-                    <input type="text" name="model_name" placeholder="ชื่อ Model API เช่น llama3:8b" required>
-                    <input type="text" name="model_label" placeholder="Label (ไม่จำเป็น)">
-                    <button type="submit" name="add_model" value="1" class="btn btn-primary btn-sm">เพิ่ม</button>
-                </form>
-            </div>
         </div>
     </div>
     <?php endforeach; ?>
