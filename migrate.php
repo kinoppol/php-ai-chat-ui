@@ -180,6 +180,42 @@ $migrations = [
         ");
     },
 
+    '20250625_001_add_api_servers_table' => function(PDO $pdo): void {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `api_servers` (
+                `id`         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `name`       VARCHAR(200) NOT NULL,
+                `base_url`   VARCHAR(500) NOT NULL,
+                `api_key`    VARCHAR(500) NOT NULL DEFAULT 'ollama',
+                `is_active`  TINYINT(1)   NOT NULL DEFAULT 1,
+                `sort_order` SMALLINT     NOT NULL DEFAULT 0,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        // Seed จาก global settings เพื่อให้ระบบเดิมยังทำงานได้
+        $count = (int)$pdo->query('SELECT COUNT(*) FROM `api_servers`')->fetchColumn();
+        if ($count === 0) {
+            $r = $pdo->query("SELECT `key`,`value` FROM settings WHERE `key` IN ('base_url','api_key')")->fetchAll(PDO::FETCH_KEY_PAIR);
+            $url = $r['base_url'] ?? 'http://localhost:11434/v1';
+            $key = $r['api_key']  ?? 'ollama';
+            $pdo->prepare("INSERT INTO `api_servers` (name, base_url, api_key, sort_order) VALUES (?,?,?,0)")
+                ->execute(['Default Server', $url, $key]);
+        }
+    },
+
+    '20250625_002_add_server_id_to_models' => function(PDO $pdo): void {
+        $pdo->exec("ALTER TABLE `models`
+            ADD COLUMN IF NOT EXISTS `server_id` INT UNSIGNED NULL DEFAULT NULL
+                COMMENT 'NULL=use global settings' AFTER `sort_order`
+        ");
+        // กำหนด Default Server ให้ทุก model ที่ยังไม่มี server_id
+        $defId = $pdo->query('SELECT id FROM api_servers ORDER BY sort_order ASC, id ASC LIMIT 1')->fetchColumn();
+        if ($defId) {
+            $pdo->prepare('UPDATE `models` SET `server_id` = ? WHERE `server_id` IS NULL')->execute([$defId]);
+        }
+    },
+
 ];
 
 // ─── Run pending migrations ───────────────────────────────────────────────────

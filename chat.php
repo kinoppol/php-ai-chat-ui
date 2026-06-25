@@ -369,6 +369,21 @@ if (isset($_GET['stream']) && $_GET['stream'] == '1' && $authenticated) {
     echo "data: " . json_encode(['conv_id' => $convId]) . "\n\n";
     flush();
 
+    // ── Resolve API server per model (fallback → global settings) ────────────
+    try {
+        $srvQ = chatDb()->prepare(
+            'SELECT s.base_url, s.api_key FROM api_servers s
+             JOIN models m ON m.server_id = s.id
+             WHERE m.name = ? AND s.is_active = 1 LIMIT 1'
+        );
+        $srvQ->execute([$requestModel]);
+        $srvRow = $srvQ->fetch(PDO::FETCH_ASSOC);
+        if ($srvRow && !empty($srvRow['base_url'])) {
+            $baseUrl = rtrim($srvRow['base_url'], '/');
+            $apiKey  = $srvRow['api_key'];
+        }
+    } catch (Throwable) { /* api_servers table may not exist yet — use global */ }
+
     // stream_options: include_usage รองรับเฉพาะ OpenAI / provider ที่ compatible
     // Ollama บางรุ่นอาจ error ถ้าไม่รู้จัก field นี้ → ใช้ fallback estimation แทน
     $isOpenAI = str_contains($baseUrl, 'openai.com') || str_contains($baseUrl, 'openrouter.ai');
