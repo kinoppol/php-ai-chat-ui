@@ -919,12 +919,14 @@ tr:hover td{background:var(--hover-bg)}
         $pageMsg = e($_GET['msg'] ?? '');
     ?>
     <style>
-    .srv-card{border:1px solid var(--border2);border-radius:14px;margin-bottom:22px;overflow:hidden;background:var(--bg2)}
+    .srv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px;align-items:start}
+    .srv-card{border:1px solid var(--border2);border-radius:14px;overflow:hidden;background:var(--bg2);display:flex;flex-direction:column}
     .srv-head{display:flex;align-items:center;gap:10px;padding:13px 16px;background:var(--bg4);border-bottom:1px solid var(--border)}
-    .srv-title{font-weight:700;font-size:15px}
+    .srv-title{font-weight:700;font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .srv-meta{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:4px 16px 10px 16px;background:var(--bg4);border-bottom:1px solid var(--border);font-size:12px}
-    .srv-meta code{color:#818cf8;font-size:11px}
-    .srv-models table{margin:0;border-radius:0}
+    .srv-meta code{color:#818cf8;font-size:11px;word-break:break-all}
+    .srv-models{flex:1}
+    .srv-models table{margin:0;border-radius:0;width:100%}
     .srv-models thead th{background:rgba(99,102,241,.04);font-size:11px;padding:6px 14px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
     .add-model-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--border);background:rgba(99,102,241,.03)}
     .add-model-bar input[type=text]{flex:1;min-width:130px;padding:6px 10px;font-size:13px;border-radius:7px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-family:inherit}
@@ -964,6 +966,7 @@ tr:hover td{background:var(--hover-bg)}
     <?php endif; ?>
 
     <!-- ── Server Cards ── -->
+    <div class="srv-grid">
     <?php foreach ($serverList as $s):
         $sModels = $modelsByServer[(int)$s['id']] ?? [];
     ?>
@@ -1027,6 +1030,7 @@ tr:hover td{background:var(--hover-bg)}
         </div>
     </div>
     <?php endforeach; ?>
+    </div><!-- /.srv-grid -->
 
     <!-- Edit Server Modal -->
     <div class="modal-bg" id="editServerModal">
