@@ -629,6 +629,11 @@ endif;
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- KaTeX — render LaTeX math ($...$ and $$...$$) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+        onload="window._katexReady=true"></script>
 
     <style>
         /* ================================================================
@@ -1974,6 +1979,19 @@ endif;
         }
         function renderMarkdown(text) { return marked.parse(text); }
 
+        function renderMath(el) {
+            if (!window._katexReady || typeof renderMathInElement !== 'function') return;
+            renderMathInElement(el, {
+                delimiters: [
+                    { left: '$$', right: '$$', display: true  },
+                    { left: '$',  right: '$',  display: false },
+                    { left: '\\(', right: '\\)', display: false },
+                    { left: '\\[', right: '\\]', display: true  },
+                ],
+                throwOnError: false,
+            });
+        }
+
         // ── Message Rendering ────────────────────────────────────────────
         function appendMessage(role, content, streaming = false) {
             $emptyState.hide();
@@ -1998,6 +2016,10 @@ endif;
                     <div class="message-avatar">${avatar}</div>
                     <div class="message-content">${body}</div>
                 </div>`);
+            // render math in history messages (not streaming ones)
+            if (role === 'assistant' && !streaming) {
+                renderMath(document.getElementById(id));
+            }
             scrollToBottom();
             return id;
         }
@@ -2048,6 +2070,7 @@ endif;
             if (isFinal) {
                 $el.html(renderMarkdown(content));
                 $el.find('pre code').each(function() { hljs.highlightElement(this); });
+                renderMath($el[0]);
             } else {
                 $el.html(renderStreaming(content) + '<span class="streaming-cursor"></span>');
                 // auto-scroll ทุก streaming-code-body ให้แสดงบรรทัดล่าสุด
