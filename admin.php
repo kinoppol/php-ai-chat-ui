@@ -193,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ->execute([$sName, $sUrl, $sKey ?: 'ollama', $sortMax + 1]);
             $flashMsg = 'เพิ่ม API Server สำเร็จ';
         }
-        header('Location: admin.php?page=api_servers&msg=' . urlencode($flashMsg)); exit;
+        header('Location: admin.php?page=api_servers&tab=servers&msg=' . urlencode($flashMsg)); exit;
     }
     if (isset($_POST['edit_api_server'])) {
         $sid  = (int)($_POST['edit_server_id'] ?? 0);
@@ -204,27 +204,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare('UPDATE api_servers SET name=?, base_url=?, api_key=? WHERE id=?')
                 ->execute([$sName, $sUrl, $sKey ?: 'ollama', $sid]);
         }
-        header('Location: admin.php?page=api_servers&msg=' . urlencode('บันทึกสำเร็จ')); exit;
+        header('Location: admin.php?page=api_servers&tab=servers&msg=' . urlencode('บันทึกสำเร็จ')); exit;
     }
     if (isset($_POST['delete_api_server'])) {
         $sid = (int)($_POST['delete_api_server'] ?? 0);
         if ($sid) {
-            // ถอด server_id ออกจาก models ที่ใช้ server นี้ → ใช้ global fallback
             db()->prepare('UPDATE models SET server_id = NULL WHERE server_id = ?')->execute([$sid]);
             db()->prepare('DELETE FROM api_servers WHERE id = ?')->execute([$sid]);
         }
-        header('Location: admin.php?page=api_servers&msg=' . urlencode('ลบ Server สำเร็จ')); exit;
+        header('Location: admin.php?page=api_servers&tab=servers&msg=' . urlencode('ลบ Server สำเร็จ')); exit;
     }
     if (isset($_POST['toggle_api_server'])) {
         $sid = (int)($_POST['toggle_api_server'] ?? 0);
         if ($sid) db()->prepare('UPDATE api_servers SET is_active = 1 - is_active WHERE id = ?')->execute([$sid]);
-        header('Location: admin.php?page=api_servers'); exit;
+        header('Location: admin.php?page=api_servers&tab=servers'); exit;
     }
     if (isset($_POST['assign_model_server'])) {
         $mid = (int)($_POST['model_id']   ?? 0);
         $sid = $_POST['model_server_id'] === '' ? null : (int)$_POST['model_server_id'];
         if ($mid) db()->prepare('UPDATE models SET server_id = ? WHERE id = ?')->execute([$sid, $mid]);
-        header('Location: admin.php?page=models&msg=' . urlencode('กำหนด Server สำเร็จ')); exit;
+        header('Location: admin.php?page=api_servers&tab=models&msg=' . urlencode('กำหนด Server สำเร็จ')); exit;
     }
 
     /* ── Settings ── */
@@ -233,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (array_key_exists($f, $_POST)) setSetting($f, trim($_POST[$f]));
         }
         // ถ้าเปลี่ยน allow_reset_global ให้ apply ไปยัง user ที่ยังใช้ค่ากลาง (token_reset_hours IS NULL) ทันที
-        header('Location: admin.php?page=tokens&saved=1'); exit;
+        header('Location: admin.php?page=tokens&saved=1'); exit; // tokens page stays separate
     }
 
     /* ── Test API connection (AJAX) ── */
@@ -336,7 +335,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (array_key_exists($f, $_POST)) setSetting($f, trim($_POST[$f]));
         }
         setSetting('allow_registration', isset($_POST['allow_registration']) ? '1' : '0');
-        $flashMsg = 'บันทึกการตั้งค่าสำเร็จ';
+        header('Location: admin.php?page=api_servers&tab=settings&msg=' . urlencode('บันทึกการตั้งค่าสำเร็จ')); exit;
     }
 
     /* ── Add user ── */
@@ -450,9 +449,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mname   = trim($_POST['model_name']    ?? '');
         $mlabel  = trim($_POST['model_label']   ?? $mname);
         $msrvId  = ($_POST['model_server_id'] ?? '') !== '' ? (int)$_POST['model_server_id'] : null;
-        if (empty($mname)) {
-            $flashMsg = 'กรุณากรอกชื่อ Model';  $flashType = 'error';
-        } else {
+        $addMsg  = 'กรุณากรอกชื่อ Model';
+        if (!empty($mname)) {
             try {
                 $maxOrd = (int) db()->query('SELECT COALESCE(MAX(sort_order),0) FROM `models`')->fetchColumn();
                 try {
@@ -462,23 +460,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     db()->prepare('INSERT INTO `models` (name,label,sort_order) VALUES (?,?,?)')
                         ->execute([$mname, $mlabel ?: $mname, $maxOrd + 1]);
                 }
-                $flashMsg = "เพิ่ม Model {$mname} แล้ว";
+                $addMsg = "เพิ่ม Model {$mname} แล้ว";
             } catch (PDOException) {
-                $flashMsg = 'Model นี้มีอยู่แล้ว';  $flashType = 'error';
+                $addMsg = 'Model นี้มีอยู่แล้ว';
             }
         }
+        header('Location: admin.php?page=api_servers&tab=models&msg=' . urlencode($addMsg)); exit;
     }
 
     /* ── Toggle model active ── */
     if (isset($_POST['toggle_model'])) {
         db()->prepare('UPDATE `models` SET is_active = NOT is_active WHERE id=?')->execute([(int)$_POST['toggle_model']]);
-        $flashMsg = 'อัปเดตสถานะ Model แล้ว';
+        header('Location: admin.php?page=api_servers&tab=models&msg=' . urlencode('อัปเดตสถานะ Model แล้ว')); exit;
     }
 
     /* ── Delete model ── */
     if (isset($_POST['delete_model'])) {
         db()->prepare('DELETE FROM `models` WHERE id=?')->execute([(int)$_POST['delete_model']]);
-        $flashMsg = 'ลบ Model แล้ว';
+        header('Location: admin.php?page=api_servers&tab=models&msg=' . urlencode('ลบ Model แล้ว')); exit;
     }
 
     /* ── Edit model ── */
@@ -496,8 +495,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db()->prepare('UPDATE `models` SET name=?, label=?, is_active=? WHERE id=?')
                     ->execute([$mname, $mlabel ?: $mname, $mactive, $mid]);
             }
-            $flashMsg = 'แก้ไข Model แล้ว';
         }
+        header('Location: admin.php?page=api_servers&tab=models&msg=' . urlencode('แก้ไข Model แล้ว')); exit;
     }
 
     /* ── Reorder model ── */
@@ -513,7 +512,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    header('Location: admin.php?page=' . urlencode($page)
+    // Map legacy page names to merged api_servers tabs
+    $pageMap = ['models' => 'api_servers&tab=models', 'settings' => 'api_servers&tab=settings'];
+    $destPage = $pageMap[$page] ?? urlencode($page);
+    header('Location: admin.php?page=' . $destPage
         . ($flashMsg ? '&msg=' . urlencode($flashMsg) . '&type=' . urlencode($flashType) : ''));
     exit;
 }
@@ -746,9 +748,7 @@ tr:hover td{background:var(--hover-bg)}
 
     <div class="sidebar-section">ระบบ AI</div>
     <nav>
-        <a href="?page=settings"    class="<?= $page==='settings'?'active':'' ?>">    <span class="ico">🔧</span>ตั้งค่า API</a>
-        <a href="?page=api_servers" class="<?= $page==='api_servers'?'active':'' ?>"> <span class="ico">🖥️</span>API Servers</a>
-        <a href="?page=models"      class="<?= $page==='models'?'active':'' ?>">      <span class="ico">🤖</span>จัดการ AI Models</a>
+        <a href="?page=api_servers" class="<?= in_array($page,['api_servers','settings','models'])?'active':'' ?>"><span class="ico">🖥️</span>API Servers &amp; Models</a>
     </nav>
 
     <div class="sidebar-section">ผู้ใช้งาน</div>
@@ -865,17 +865,51 @@ tr:hover td{background:var(--hover-bg)}
     </div>
 
     <!-- ════════════════════════════════════════════════════════════════════
-         API SERVERS
+         API SERVERS + MODELS + SETTINGS  (merged page with tabs)
     ════════════════════════════════════════════════════════════════════ -->
-    <?php elseif ($page === 'api_servers'):
+    <?php elseif (in_array($page, ['api_servers','settings','models'])):
+        $activeTab = $_GET['tab'] ?? ($page === 'settings' ? 'settings' : ($page === 'models' ? 'models' : 'servers'));
         $serverList = db()->query('SELECT * FROM api_servers ORDER BY sort_order ASC, id ASC')->fetchAll();
-        $flashMsg2  = $_GET['msg'] ?? '';
+        try {
+            $modelList = db()->query('SELECT m.*, s.name AS server_name FROM `models` m LEFT JOIN api_servers s ON s.id = m.server_id ORDER BY m.sort_order ASC, m.id ASC')->fetchAll();
+        } catch (Throwable) {
+            $modelList = db()->query('SELECT *, NULL AS server_name FROM `models` ORDER BY sort_order ASC, id ASC')->fetchAll();
+        }
+        try {
+            $serverOptions = db()->query('SELECT id, name FROM api_servers WHERE is_active=1 ORDER BY sort_order ASC, id ASC')->fetchAll();
+        } catch (Throwable) { $serverOptions = []; }
+        $tabMsg = e($_GET['msg'] ?? '');
     ?>
-    <?php if ($flashMsg2): ?>
-    <div class="alert alert-success" style="margin-bottom:16px"><?= e($flashMsg2) ?></div>
+
+    <!-- Tab bar -->
+    <style>
+    .tab-bar{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border2);padding-bottom:0}
+    .tab-btn{padding:9px 20px;border:none;background:none;color:var(--text2);cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;border-radius:6px 6px 0 0;transition:.15s}
+    .tab-btn:hover{background:var(--hover-bg);color:var(--text)}
+    .tab-btn.active{color:#818cf8;border-bottom-color:#818cf8;background:rgba(99,102,241,.07)}
+    </style>
+    <div class="tab-bar">
+        <button class="tab-btn <?= $activeTab==='servers'?'active':'' ?>" onclick="switchTab('servers')">🖥️ API Servers</button>
+        <button class="tab-btn <?= $activeTab==='models'?'active':'' ?>"  onclick="switchTab('models')">🤖 AI Models</button>
+        <button class="tab-btn <?= $activeTab==='settings'?'active':'' ?>" onclick="switchTab('settings')">🔧 ตั้งค่าทั่วไป</button>
+    </div>
+    <script>
+    function switchTab(tab) {
+        const url = new URL(location.href);
+        url.searchParams.set('page', 'api_servers');
+        url.searchParams.set('tab', tab);
+        url.searchParams.delete('msg');
+        location.href = url.toString();
+    }
+    </script>
+
+    <?php if ($tabMsg): ?>
+    <div class="alert alert-success" style="margin-bottom:16px"><?= $tabMsg ?></div>
     <?php endif; ?>
 
-    <!-- Add Server -->
+    <!-- ──────────────────── TAB: SERVERS ──────────────────── -->
+    <div id="tab-servers" <?= $activeTab!=='servers'?'style="display:none"':'' ?>>
+
     <div class="panel">
         <div class="panel-head">➕ เพิ่ม API Server</div>
         <div class="panel-body">
@@ -900,7 +934,6 @@ tr:hover td{background:var(--hover-bg)}
         </div>
     </div>
 
-    <!-- Server List -->
     <div class="panel">
         <div class="panel-head">🖥️ รายชื่อ API Servers (<?= count($serverList) ?> รายการ)</div>
         <?php if (empty($serverList)): ?>
@@ -908,16 +941,11 @@ tr:hover td{background:var(--hover-bg)}
         <?php else: ?>
         <table>
             <thead><tr>
-                <th>ชื่อ Server</th>
-                <th>Base URL</th>
-                <th>API Key</th>
-                <th>Models</th>
-                <th>สถานะ</th>
-                <th>จัดการ</th>
+                <th>ชื่อ Server</th><th>Base URL</th><th>API Key</th><th>Models</th><th>สถานะ</th><th>จัดการ</th>
             </tr></thead>
             <tbody>
             <?php foreach ($serverList as $s):
-                $mCount = (int)db()->prepare('SELECT COUNT(*) FROM models WHERE server_id = ?')->execute([$s['id']]) ? (int)db()->query('SELECT COUNT(*) FROM models WHERE server_id = ' . (int)$s['id'])->fetchColumn() : 0;
+                $mCount = (int)db()->query('SELECT COUNT(*) FROM models WHERE server_id = ' . (int)$s['id'])->fetchColumn();
             ?>
             <tr>
                 <td><strong><?= e($s['name']) ?></strong></td>
@@ -948,19 +976,8 @@ tr:hover td{background:var(--hover-bg)}
         <?php endif; ?>
     </div>
 
-    <div class="panel" style="background:rgba(99,102,241,.06);border-color:rgba(99,102,241,.2)">
-        <div class="panel-body" style="padding:14px 18px">
-            <strong style="color:#818cf8">💡 วิธีใช้งาน</strong><br>
-            <small style="color:var(--text2);line-height:1.7">
-                เพิ่ม Server แต่ละเครื่องที่นี่ แล้วไปที่ <a href="?page=models" style="color:#818cf8">🤖 จัดการ AI Models</a>
-                เพื่อกำหนดว่า Model ไหนรันบน Server ไหน<br>
-                เมื่อผู้ใช้เลือก Model ระบบจะส่ง request ไปยัง Server ที่กำหนดโดยอัตโนมัติ
-            </small>
-        </div>
-    </div>
-
     <!-- Edit Server Modal -->
-    <div class="modal-bg" id="editServerModal" onclick="if(event.target===this){}">
+    <div class="modal-bg" id="editServerModal">
         <div class="modal">
             <h3>✏️ แก้ไข API Server</h3>
             <form method="POST">
@@ -978,24 +995,148 @@ tr:hover td{background:var(--hover-bg)}
     </div>
     <script>
     function openEditServer(id, name, url, key) {
-        document.getElementById('editServerId').value    = id;
-        document.getElementById('editServerName').value  = name;
+        document.getElementById('editServerId').value      = id;
+        document.getElementById('editServerName').value    = name;
         document.getElementById('editServerBaseUrl').value = url;
         document.getElementById('editServerApiKey').value  = key;
         document.getElementById('editServerModal').classList.add('open');
     }
     </script>
+    </div><!-- /tab-servers -->
 
-    <!-- ════════════════════════════════════════════════════════════════════
-         SETTINGS
-    ════════════════════════════════════════════════════════════════════ -->
-    <?php elseif ($page === 'settings'): ?>
+    <!-- ──────────────────── TAB: MODELS ──────────────────── -->
+    <div id="tab-models" <?= $activeTab!=='models'?'style="display:none"':'' ?>>
+
+    <div class="panel">
+        <div class="panel-head">➕ เพิ่ม AI Model</div>
+        <div class="panel-body">
+        <form method="POST">
+            <div class="form-grid">
+                <div class="fg">
+                    <label>ชื่อ Model * <small style="font-weight:400;text-transform:none">(ใช้เรียก API)</small></label>
+                    <input type="text" name="model_name" placeholder="เช่น llama3:8b, gpt-4o-mini" required>
+                    <small>ต้องตรงกับชื่อที่ Ollama / OpenAI กำหนด</small>
+                </div>
+                <div class="fg">
+                    <label>Label <small style="font-weight:400;text-transform:none">(ชื่อที่แสดงให้ผู้ใช้เห็น)</small></label>
+                    <input type="text" name="model_label" placeholder="เช่น Llama 3 (8B), GPT-4o Mini">
+                    <small>เว้นว่างจะใช้ชื่อ Model แทน</small>
+                </div>
+                <div class="fg">
+                    <label>API Server</label>
+                    <select name="model_server_id">
+                        <option value="">— Global (ใช้ค่า settings หลัก) —</option>
+                        <?php foreach ($serverOptions as $srv): ?>
+                        <option value="<?= $srv['id'] ?>"><?= e($srv['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" name="add_model" value="1" class="btn btn-primary">เพิ่ม Model</button>
+        </form>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-head">
+            🤖 รายชื่อ AI Models (<?= count($modelList) ?> รายการ)
+            <span style="color:var(--muted);font-size:12px;font-weight:400">ลากเพื่อเรียงลำดับ</span>
+        </div>
+        <?php if (empty($modelList)): ?>
+        <div class="empty"><div class="empty-ico">🤖</div>ยังไม่มี Model — เพิ่มด้านบน</div>
+        <?php else: ?>
+        <table>
+            <thead><tr>
+                <th style="width:32px"></th>
+                <th>ชื่อ Model (API)</th>
+                <th>Label (แสดงผล)</th>
+                <th>API Server</th>
+                <th>สถานะ</th>
+                <th>จัดการ</th>
+            </tr></thead>
+            <tbody id="modelTableBody">
+            <?php foreach ($modelList as $m): ?>
+            <tr data-id="<?= $m['id'] ?>" class="model-row">
+                <td><span class="drag-handle" title="ลากเพื่อเรียง">⠿</span></td>
+                <td><code style="color:#818cf8;font-size:13px"><?= e($m['name']) ?></code></td>
+                <td style="color:var(--text2)"><?= e($m['label'] ?: $m['name']) ?></td>
+                <td>
+                    <?php if ($m['server_name']): ?>
+                    <span style="font-size:12px;background:rgba(99,102,241,.12);color:#818cf8;padding:2px 8px;border-radius:8px">🖥️ <?= e($m['server_name']) ?></span>
+                    <?php else: ?>
+                    <span style="font-size:11px;color:var(--muted)">Global</span>
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <form method="POST" style="display:inline">
+                        <input type="hidden" name="toggle_model" value="<?= $m['id'] ?>">
+                        <button class="badge <?= $m['is_active'] ? 'b-on' : 'b-off' ?>" style="cursor:pointer;border:none;font-family:inherit" title="คลิกเพื่อเปลี่ยนสถานะ">
+                            <?= $m['is_active'] ? '● เปิด' : '○ ปิด' ?>
+                        </button>
+                    </form>
+                </td>
+                <td>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                        <button class="btn btn-ghost btn-sm" onclick="openEditModel(<?= $m['id'] ?>, '<?= e(addslashes($m['name'])) ?>', '<?= e(addslashes($m['label'])) ?>', <?= $m['is_active'] ? 1 : 0 ?>, <?= $m['server_id'] ? (int)$m['server_id'] : 0 ?>)">✏️ แก้ไข</button>
+                        <form method="POST" onsubmit="return confirm('ลบ Model <?= e(addslashes($m['name'])) ?>?')" style="display:inline">
+                            <input type="hidden" name="delete_model" value="<?= $m['id'] ?>">
+                            <button class="btn btn-danger btn-sm">🗑 ลบ</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
+    </div>
+
+    <!-- Edit Model Modal -->
+    <div class="modal-bg" id="editModelModal">
+        <div class="modal">
+            <h3>✏️ แก้ไข AI Model</h3>
+            <form method="POST">
+                <input type="hidden" name="edit_model" value="1">
+                <input type="hidden" name="edit_model_id" id="editModelId">
+                <div class="fg"><label>ชื่อ Model (API)</label><input type="text" name="edit_model_name" id="editModelName" required></div>
+                <div class="fg"><label>Label (แสดงผล)</label><input type="text" name="edit_model_label" id="editModelLabel" placeholder="เว้นว่างใช้ชื่อ Model"></div>
+                <div class="fg">
+                    <label>API Server</label>
+                    <select name="edit_model_server_id" id="editModelServerId">
+                        <option value="">— Global (ใช้ค่า settings หลัก) —</option>
+                        <?php foreach ($serverOptions as $srv): ?>
+                        <option value="<?= $srv['id'] ?>"><?= e($srv['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="fg">
+                    <label style="margin-bottom:8px;display:block">สถานะการใช้งาน</label>
+                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+                        <input type="checkbox" name="edit_model_active" id="editModelActive" value="1" style="width:18px;height:18px;accent-color:#10a37f;cursor:pointer">
+                        <span id="editModelActiveLabel" style="font-size:13px"></span>
+                    </label>
+                    <small style="color:var(--muted)">ปิดการใช้งาน = ซ่อนจาก dropdown ในหน้า Chat แต่ยังเก็บข้อมูลไว้</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">💾 บันทึก</button>
+                    <button type="button" class="btn btn-ghost" onclick="closeModal('editModelModal')">ยกเลิก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    </div><!-- /tab-models -->
+
+    <!-- ──────────────────── TAB: SETTINGS ──────────────────── -->
+    <div id="tab-settings" <?= $activeTab!=='settings'?'style="display:none"':'' ?>>
 
     <form method="POST">
     <input type="hidden" name="save_settings" value="1">
     <div class="panel">
-        <div class="panel-head">🔑 การเชื่อมต่อ AI API</div>
+        <div class="panel-head">🔑 Global API (ค่า Fallback)</div>
         <div class="panel-body">
+            <div style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.6">
+                ⚠️ ค่านี้ใช้เป็น <strong>fallback</strong> เมื่อ Model ไม่ได้ผูกกับ Server ใดใน tab 🖥️ API Servers
+            </div>
             <div class="fg">
                 <label>API Key</label>
                 <input type="text" name="api_key" id="settingApiKey" value="<?= e(getSetting('api_key')) ?>" placeholder="sk-... หรือ ollama">
@@ -1005,20 +1146,14 @@ tr:hover td{background:var(--hover-bg)}
                 <input type="text" name="base_url" id="settingBaseUrl" value="<?= e(getSetting('base_url','http://localhost:11434/v1')) ?>">
                 <small>OpenAI: https://api.openai.com/v1 &nbsp;|&nbsp; Ollama: http://localhost:11434/v1 &nbsp;|&nbsp; OpenRouter: https://openrouter.ai/api/v1</small>
             </div>
-
-            <!-- ── Test Connection ── -->
             <div style="display:flex;align-items:center;gap:12px;margin-top:4px;flex-wrap:wrap">
-                <button type="button" class="btn btn-ghost" id="testConnBtn" onclick="testApiConnection()">
-                    🔌 ทดสอบการเชื่อมต่อ
-                </button>
+                <button type="button" class="btn btn-ghost" id="testConnBtn" onclick="testApiConnection()">🔌 ทดสอบการเชื่อมต่อ</button>
                 <div id="testConnResult" style="font-size:13px;display:none;padding:7px 14px;border-radius:8px;font-weight:500"></div>
             </div>
-
             <div class="form-grid" style="margin-top:16px">
                 <div class="fg">
                     <label>Default Model <small style="font-weight:400;text-transform:none">(model ที่เลือกเมื่อเปิด chat)</small></label>
                     <input type="text" name="model" value="<?= e(getSetting('model','llama3:8b')) ?>">
-                    <small>ต้องตรงกับชื่อ Model ในหน้า "จัดการ AI Models"</small>
                 </div>
                 <div class="fg">
                     <label>Max Tokens</label>
@@ -1052,150 +1187,7 @@ tr:hover td{background:var(--hover-bg)}
     </div>
     <button type="submit" class="btn btn-primary">💾 บันทึกการตั้งค่า</button>
     </form>
-
-    <!-- ════════════════════════════════════════════════════════════════════
-         AI MODELS
-    ════════════════════════════════════════════════════════════════════ -->
-    <?php elseif ($page === 'models'):
-        try {
-            $modelList = db()->query('SELECT m.*, s.name AS server_name, s.base_url AS server_url FROM `models` m LEFT JOIN api_servers s ON s.id = m.server_id ORDER BY m.sort_order ASC, m.id ASC')->fetchAll();
-        } catch (Throwable) {
-            $modelList = db()->query('SELECT *, NULL AS server_name, NULL AS server_url FROM `models` ORDER BY sort_order ASC, id ASC')->fetchAll();
-        }
-        try {
-            $serverOptions = db()->query('SELECT id, name FROM api_servers WHERE is_active=1 ORDER BY sort_order ASC, id ASC')->fetchAll();
-        } catch (Throwable) { $serverOptions = []; }
-    ?>
-
-    <!-- Add Model -->
-    <div class="panel">
-        <div class="panel-head">➕ เพิ่ม AI Model</div>
-        <div class="panel-body">
-        <form method="POST">
-            <div class="form-grid">
-                <div class="fg">
-                    <label>ชื่อ Model * <small style="font-weight:400;text-transform:none">(ใช้เรียก API)</small></label>
-                    <input type="text" name="model_name" placeholder="เช่น llama3:8b, gpt-4o-mini" required>
-                    <small>ต้องตรงกับชื่อที่ Ollama / OpenAI กำหนด</small>
-                </div>
-                <div class="fg">
-                    <label>Label <small style="font-weight:400;text-transform:none">(ชื่อที่แสดงให้ผู้ใช้เห็น)</small></label>
-                    <input type="text" name="model_label" placeholder="เช่น Llama 3 (8B), GPT-4o Mini">
-                    <small>เว้นว่างจะใช้ชื่อ Model แทน</small>
-                </div>
-                <div class="fg">
-                    <label>API Server</label>
-                    <select name="model_server_id">
-                        <option value="">— Global (ใช้ค่า settings หลัก) —</option>
-                        <?php foreach ($serverOptions as $srv): ?>
-                        <option value="<?= $srv['id'] ?>"><?= e($srv['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-            </div>
-            <button type="submit" name="add_model" value="1" class="btn btn-primary">เพิ่ม Model</button>
-        </form>
-        </div>
-    </div>
-
-    <!-- Model List -->
-    <div class="panel">
-        <div class="panel-head">
-            🤖 รายชื่อ AI Models (<?= count($modelList) ?> รายการ)
-            <span style="color:var(--muted);font-size:12px;font-weight:400">ลากเพื่อเรียงลำดับ</span>
-        </div>
-        <?php if (empty($modelList)): ?>
-        <div class="empty"><div class="empty-ico">🤖</div>ยังไม่มี Model — เพิ่มด้านบน</div>
-        <?php else: ?>
-        <table>
-            <thead>
-                <tr>
-                    <th style="width:32px"></th>
-                    <th>ชื่อ Model (API)</th>
-                    <th>Label (แสดงผล)</th>
-                    <th>API Server</th>
-                    <th>สถานะ</th>
-                    <th>จัดการ</th>
-                </tr>
-            </thead>
-            <tbody id="modelTableBody">
-            <?php foreach ($modelList as $m): ?>
-            <tr data-id="<?= $m['id'] ?>" class="model-row">
-                <td><span class="drag-handle" title="ลากเพื่อเรียง">⠿</span></td>
-                <td><code style="color:#818cf8;font-size:13px"><?= e($m['name']) ?></code></td>
-                <td style="color:var(--text2)"><?= e($m['label'] ?: $m['name']) ?></td>
-                <td>
-                    <?php if ($m['server_name']): ?>
-                    <span style="font-size:12px;background:rgba(99,102,241,.12);color:#818cf8;padding:2px 8px;border-radius:8px">🖥️ <?= e($m['server_name']) ?></span>
-                    <?php else: ?>
-                    <span style="font-size:11px;color:var(--muted)">Global</span>
-                    <?php endif; ?>
-                </td>
-                <td>
-                    <form method="POST" style="display:inline">
-                        <input type="hidden" name="toggle_model" value="<?= $m['id'] ?>">
-                        <button class="badge <?= $m['is_active'] ? 'b-on' : 'b-off' ?>" style="cursor:pointer;border:none;font-family:inherit"
-                            title="คลิกเพื่อเปลี่ยนสถานะ">
-                            <?= $m['is_active'] ? '● เปิด' : '○ ปิด' ?>
-                        </button>
-                    </form>
-                </td>
-                <td>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap">
-                        <button class="btn btn-ghost btn-sm" onclick="openEditModel(<?= $m['id'] ?>, '<?= e(addslashes($m['name'])) ?>', '<?= e(addslashes($m['label'])) ?>', <?= $m['is_active'] ? 1 : 0 ?>, <?= $m['server_id'] ? (int)$m['server_id'] : 0 ?>)">✏️ แก้ไข</button>
-                        <form method="POST" onsubmit="return confirm('ลบ Model <?= e(addslashes($m['name'])) ?>?')" style="display:inline">
-                            <input type="hidden" name="delete_model" value="<?= $m['id'] ?>">
-                            <button class="btn btn-danger btn-sm">🗑 ลบ</button>
-                        </form>
-                    </div>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-        <?php endif; ?>
-    </div>
-
-    <!-- Edit Model Modal -->
-    <div class="modal-bg" id="editModelModal">
-        <div class="modal">
-            <h3>✏️ แก้ไข AI Model</h3>
-            <form method="POST">
-                <input type="hidden" name="edit_model" value="1">
-                <input type="hidden" name="edit_model_id" id="editModelId">
-                <div class="fg">
-                    <label>ชื่อ Model (API)</label>
-                    <input type="text" name="edit_model_name" id="editModelName" required>
-                </div>
-                <div class="fg">
-                    <label>Label (แสดงผล)</label>
-                    <input type="text" name="edit_model_label" id="editModelLabel" placeholder="เว้นว่างใช้ชื่อ Model">
-                </div>
-                <div class="fg">
-                    <label>API Server</label>
-                    <select name="edit_model_server_id" id="editModelServerId">
-                        <option value="">— Global (ใช้ค่า settings หลัก) —</option>
-                        <?php foreach ($serverOptions as $srv): ?>
-                        <option value="<?= $srv['id'] ?>"><?= e($srv['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="fg">
-                    <label style="margin-bottom:8px;display:block">สถานะการใช้งาน</label>
-                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
-                        <input type="checkbox" name="edit_model_active" id="editModelActive" value="1"
-                               style="width:18px;height:18px;accent-color:#10a37f;cursor:pointer">
-                        <span id="editModelActiveLabel" style="font-size:13px"></span>
-                    </label>
-                    <small style="color:var(--muted)">ปิดการใช้งาน = ซ่อนจาก dropdown ในหน้า Chat แต่ยังเก็บข้อมูลไว้</small>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">💾 บันทึก</button>
-                    <button type="button" class="btn btn-ghost" onclick="closeModal('editModelModal')">ยกเลิก</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    </div><!-- /tab-settings -->
 
     <!-- ════════════════════════════════════════════════════════════════════
          USERS
