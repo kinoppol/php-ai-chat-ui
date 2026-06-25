@@ -176,6 +176,27 @@ if (!$adminId) {
     exit;
 }
 
+// ─── AJAX: import discovered models ──────────────────────────────────────────
+if (isset($_GET['api']) && $_GET['api'] === 'import_models') {
+    header('Content-Type: application/json; charset=utf-8');
+    $serverId = (int)($_POST['server_id'] ?? 0);
+    $names    = json_decode($_POST['models'] ?? '[]', true);
+    if (!is_array($names) || empty($names)) { echo json_encode(['ok'=>false,'msg'=>'ไม่มีข้อมูล']); exit; }
+    $imported = 0; $skipped = 0;
+    $maxOrd = (int)db()->query('SELECT COALESCE(MAX(sort_order),0) FROM `models`')->fetchColumn();
+    foreach ($names as $name) {
+        $name = trim((string)$name);
+        if (!$name) continue;
+        try {
+            $srvVal = $serverId > 0 ? $serverId : null;
+            db()->prepare('INSERT IGNORE INTO `models` (name, label, sort_order, server_id) VALUES (?,?,?,?)')
+                ->execute([$name, $name, ++$maxOrd, $srvVal]);
+            $imported++;
+        } catch (Throwable) { $skipped++; }
+    }
+    echo json_encode(['ok'=>true,'imported'=>$imported,'skipped'=>$skipped]); exit;
+}
+
 // ─── POST actions ─────────────────────────────────────────────────────────────
 $flashMsg  = '';
 $flashType = 'success';
@@ -197,9 +218,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (isset($_POST['edit_api_server'])) {
         $sid  = (int)($_POST['edit_server_id'] ?? 0);
-        $sName = trim($_POST['edit_server_name']    ?? '');
-        $sUrl  = rtrim(trim($_POST['edit_server_base_url'] ?? ''), '/');
-        $sKey  = trim($_POST['edit_server_api_key'] ?? '');
+        $sName = trim($_POST['edit_server_name'] ?? '');
+        $sUrl  = rtrim(trim($_POST['base_url']   ?? ''), '/');
+        $sKey  = trim($_POST['api_key']          ?? '');
         if ($sid && $sName && $sUrl) {
             db()->prepare('UPDATE api_servers SET name=?, base_url=?, api_key=? WHERE id=?')
                 ->execute([$sName, $sUrl, $sKey ?: 'ollama', $sid]);
@@ -233,27 +254,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         // ถ้าเปลี่ยน allow_reset_global ให้ apply ไปยัง user ที่ยังใช้ค่ากลาง (token_reset_hours IS NULL) ทันที
         header('Location: admin.php?page=tokens&saved=1'); exit; // tokens page stays separate
-    }
-
-    /* ── Import models from discovered list (AJAX) ── */
-    if (isset($_GET['api']) && $_GET['api'] === 'import_models') {
-        header('Content-Type: application/json; charset=utf-8');
-        $serverId  = (int)($_POST['server_id'] ?? 0);
-        $names     = json_decode($_POST['models'] ?? '[]', true);
-        if (!is_array($names) || empty($names)) { echo json_encode(['ok'=>false,'msg'=>'ไม่มีข้อมูล']); exit; }
-        $imported = 0; $skipped = 0;
-        $maxOrd = (int)db()->query('SELECT COALESCE(MAX(sort_order),0) FROM `models`')->fetchColumn();
-        foreach ($names as $name) {
-            $name = trim((string)$name);
-            if (!$name) continue;
-            try {
-                $srvVal = $serverId > 0 ? $serverId : null;
-                db()->prepare('INSERT IGNORE INTO `models` (name, label, sort_order, server_id) VALUES (?,?,?,?)')
-                    ->execute([$name, $name, ++$maxOrd, $srvVal]);
-                $imported++;
-            } catch (Throwable) { $skipped++; }
-        }
-        echo json_encode(['ok'=>true,'imported'=>$imported,'skipped'=>$skipped]); exit;
     }
 
     /* ── Test API connection (AJAX) ── */
