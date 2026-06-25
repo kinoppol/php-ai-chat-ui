@@ -88,6 +88,10 @@ function ensureApiServersTable(): void {
     try {
         db()->exec("ALTER TABLE `models` ADD COLUMN IF NOT EXISTS `server_id` INT UNSIGNED NULL DEFAULT NULL AFTER `sort_order`");
     } catch (Throwable) {}
+    // Ensure api_servers has nickname column
+    try {
+        db()->exec("ALTER TABLE `api_servers` ADD COLUMN IF NOT EXISTS `nickname` VARCHAR(100) NOT NULL DEFAULT '' AFTER `name`");
+    } catch (Throwable) {}
     // Seed default server from global settings if empty
     $count = (int)db()->query('SELECT COUNT(*) FROM `api_servers`')->fetchColumn();
     if ($count === 0) {
@@ -233,25 +237,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /* ── API Servers CRUD ── */
     if (isset($_POST['add_api_server'])) {
-        $sName   = trim($_POST['server_name']    ?? '');
-        $sUrl    = rtrim(trim($_POST['server_base_url'] ?? ''), '/');
-        $sKey    = trim($_POST['server_api_key'] ?? 'ollama');
+        $sName     = trim($_POST['server_name']     ?? '');
+        $sNick     = trim($_POST['server_nickname'] ?? '');
+        $sUrl      = rtrim(trim($_POST['server_base_url'] ?? ''), '/');
+        $sKey      = trim($_POST['server_api_key']  ?? 'ollama');
         if ($sName && $sUrl) {
             $sortMax = (int)db()->query('SELECT COALESCE(MAX(sort_order),0) FROM api_servers')->fetchColumn();
-            db()->prepare('INSERT INTO api_servers (name, base_url, api_key, sort_order) VALUES (?,?,?,?)')
-                ->execute([$sName, $sUrl, $sKey ?: 'ollama', $sortMax + 1]);
+            db()->prepare('INSERT INTO api_servers (name, nickname, base_url, api_key, sort_order) VALUES (?,?,?,?,?)')
+                ->execute([$sName, $sNick, $sUrl, $sKey ?: 'ollama', $sortMax + 1]);
             $flashMsg = 'เพิ่ม API Server สำเร็จ';
         }
         header('Location: admin.php?page=api_servers&msg=' . urlencode($flashMsg)); exit;
     }
     if (isset($_POST['edit_api_server'])) {
-        $sid  = (int)($_POST['edit_server_id'] ?? 0);
-        $sName = trim($_POST['edit_server_name'] ?? '');
-        $sUrl  = rtrim(trim($_POST['base_url']   ?? ''), '/');
-        $sKey  = trim($_POST['api_key']          ?? '');
+        $sid   = (int)($_POST['edit_server_id']   ?? 0);
+        $sName = trim($_POST['edit_server_name']  ?? '');
+        $sNick = trim($_POST['server_nickname']   ?? '');
+        $sUrl  = rtrim(trim($_POST['base_url']    ?? ''), '/');
+        $sKey  = trim($_POST['api_key']           ?? '');
         if ($sid && $sName && $sUrl) {
-            db()->prepare('UPDATE api_servers SET name=?, base_url=?, api_key=? WHERE id=?')
-                ->execute([$sName, $sUrl, $sKey ?: 'ollama', $sid]);
+            db()->prepare('UPDATE api_servers SET name=?, nickname=?, base_url=?, api_key=? WHERE id=?')
+                ->execute([$sName, $sNick, $sUrl, $sKey ?: 'ollama', $sid]);
         }
         header('Location: admin.php?page=api_servers&msg=' . urlencode('บันทึกสำเร็จ')); exit;
     }
@@ -975,8 +981,9 @@ tr:hover td{background:var(--hover-bg)}
             <div class="panel-head">➕ เพิ่ม AI Server</div>
             <div class="panel-body">
             <form method="POST">
-                <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr">
+                <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
                     <div class="fg"><label>ชื่อ Server *</label><input type="text" name="server_name" placeholder="เช่น GPU Server 1, OpenAI" required></div>
+                    <div class="fg"><label>ชื่อเล่น (แสดงใน Chat)</label><input type="text" name="server_nickname" placeholder="เช่น Local, GPT, Claude"></div>
                     <div class="fg"><label>Base URL *</label><input type="text" name="server_base_url" placeholder="http://192.168.1.10:11434/v1" required></div>
                     <div class="fg"><label>API Key</label><input type="text" name="server_api_key" placeholder="ollama / sk-..."><small>เว้นว่างจะใช้ "ollama"</small></div>
                 </div>
@@ -1002,7 +1009,12 @@ tr:hover td{background:var(--hover-bg)}
     <div class="srv-card">
         <div class="srv-head">
             <span class="srv-status-ico"><?= $s['is_active'] ? '🖥️' : '💤' ?></span>
-            <span class="srv-title"><?= e($s['name']) ?></span>
+            <div>
+                <div class="srv-title"><?= e($s['name']) ?></div>
+                <?php if (!empty($s['nickname'])): ?>
+                <div style="font-size:11px;color:#818cf8;margin-top:2px">ชื่อเล่น: <strong><?= e($s['nickname']) ?></strong></div>
+                <?php endif; ?>
+            </div>
         </div>
         <div class="srv-meta">
             <span class="badge <?= $s['is_active'] ? 'b-on' : 'b-off' ?>"><?= $s['is_active'] ? '● เปิด' : '○ ปิด' ?></span>
@@ -1013,7 +1025,7 @@ tr:hover td{background:var(--hover-bg)}
         <div class="srv-actions">
             <form method="POST" style="display:inline"><input type="hidden" name="toggle_api_server" value="<?= $s['id'] ?>">
                 <button class="btn btn-ghost btn-sm"><?= $s['is_active'] ? '⏸ ปิด' : '▶ เปิด' ?></button></form>
-            <button class="btn btn-ghost btn-sm" onclick="openEditServer(<?= $s['id'] ?>, '<?= e(addslashes($s['name'])) ?>', '<?= e(addslashes($s['base_url'])) ?>', '<?= e(addslashes($s['api_key'])) ?>')">✏️ แก้ไข / จัดการ Models</button>
+            <button class="btn btn-ghost btn-sm" onclick="openEditServer(<?= $s['id'] ?>, '<?= e(addslashes($s['name'])) ?>', '<?= e(addslashes($s['nickname'] ?? '')) ?>', '<?= e(addslashes($s['base_url'])) ?>', '<?= e(addslashes($s['api_key'])) ?>')">✏️ แก้ไข / จัดการ Models</button>
             <form method="POST" onsubmit="return confirm('ลบ Server <?= e(addslashes($s['name'])) ?>?\nModels จะถูกย้ายไป Global')" style="display:inline">
                 <input type="hidden" name="delete_api_server" value="<?= $s['id'] ?>">
                 <button class="btn btn-danger btn-sm">🗑</button>
@@ -1069,7 +1081,10 @@ tr:hover td{background:var(--hover-bg)}
                 <input type="hidden" name="edit_api_server" value="1">
                 <input type="hidden" name="edit_server_id" id="editServerId">
                 <div class="modal-body">
-                    <div class="fg"><label>ชื่อ Server</label><input type="text" name="edit_server_name" id="editServerName" required></div>
+                    <div class="form-grid" style="grid-template-columns:1fr 1fr">
+                        <div class="fg"><label>ชื่อ Server</label><input type="text" name="edit_server_name" id="editServerName" required></div>
+                        <div class="fg"><label>ชื่อเล่น (แสดงใน Chat)</label><input type="text" name="server_nickname" id="editServerNickname" placeholder="เช่น Local, GPT, Claude"></div>
+                    </div>
                     <div class="fg"><label>Base URL</label><input type="text" name="base_url" id="settingBaseUrl" required></div>
                     <div class="fg"><label>API Key</label><input type="text" name="api_key" id="settingApiKey"></div>
                     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
@@ -1144,11 +1159,12 @@ tr:hover td{background:var(--hover-bg)}
     </div>
 
     <script>
-    function openEditServer(id, name, url, key) {
-        document.getElementById('editServerId').value   = id;
-        document.getElementById('editServerName').value = name;
-        document.getElementById('settingBaseUrl').value = url;
-        document.getElementById('settingApiKey').value  = key;
+    function openEditServer(id, name, nick, url, key) {
+        document.getElementById('editServerId').value        = id;
+        document.getElementById('editServerName').value      = name;
+        document.getElementById('editServerNickname').value  = nick;
+        document.getElementById('settingBaseUrl').value      = url;
+        document.getElementById('settingApiKey').value       = key;
         document.getElementById('testConnResult').style.display  = 'none';
         document.getElementById('discoveredModelsBox').style.display = 'none';
         _allDiscoveredModels = [];

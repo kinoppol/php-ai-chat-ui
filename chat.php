@@ -71,7 +71,7 @@ $modelsList   = $model; // fallback
 $__modelsData = [];
 $noModels     = false;  // true = มี models table แต่ไม่มีโมเดลเปิดอยู่เลย
 try {
-    $__stmt = chatDb()->query('SELECT name, label FROM `models` WHERE is_active=1 ORDER BY sort_order ASC, id ASC');
+    $__stmt = chatDb()->query('SELECT m.name, m.label, COALESCE(s.nickname,"") AS server_nick FROM `models` m LEFT JOIN `api_servers` s ON s.id=m.server_id WHERE m.is_active=1 ORDER BY m.sort_order ASC, m.id ASC');
     $__rows = $__stmt->fetchAll(PDO::FETCH_ASSOC);
     // ตรวจว่า models table มีข้อมูลอยู่เลยหรือไม่ (เพื่อแยก "ยังไม่ migrate" vs "ปิดหมด")
     $__total = (int)chatDb()->query('SELECT COUNT(*) FROM `models`')->fetchColumn();
@@ -1694,6 +1694,9 @@ endif;
                         if (!empty($__modelsData)) {
                             foreach ($__modelsData as $m):
                                 $displayName = $m['label'] ?: $m['name'];
+                                if (!empty($m['server_nick'])) {
+                                    $displayName = '(' . $m['server_nick'] . ') ' . $displayName;
+                                }
                         ?>
                         <div class="model-option" data-model="<?= htmlspecialchars($m['name']) ?>"><?= htmlspecialchars($displayName) ?></div>
                         <?php   endforeach;
