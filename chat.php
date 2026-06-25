@@ -1590,26 +1590,31 @@ endif;
             display: none;
             position: absolute;
             top: 100%;
-            left: 0;
+            left: 50%;
+            transform: translateX(-50%);
             margin-top: 8px;
             background-color: var(--panel-bg);
             border: 1px solid var(--border2);
             border-radius: 12px;
             padding: 8px;
-            min-width: 200px;
+            min-width: max-content;
+            max-width: min(480px, 90vw);
+            max-height: 60vh;
+            overflow-y: auto;
             box-shadow: 0 4px 24px rgba(0,0,0,0.3);
             z-index: 50;
         }
-        
+
         .model-dropdown-menu.show {
             display: block;
         }
-        
+
         .model-option {
-            padding: 10px 12px;
+            padding: 10px 14px;
             border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
+            white-space: nowrap;
             transition: background-color 0.2s;
         }
         
