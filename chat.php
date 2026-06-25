@@ -350,10 +350,22 @@ if (isset($_GET['stream']) && $_GET['stream'] == '1' && $authenticated) {
         chatDb()->prepare('UPDATE conversations SET model=?, updated_at=NOW() WHERE id=?')->execute([$requestModel, $convId]);
     }
 
-    // Save the last user message to DB (last item in messages array with role=user)
+    // Save the last user message to DB (extract text from content array or plain string)
     $lastUserMsg = null;
     for ($i = count($requestMessages) - 1; $i >= 0; $i--) {
-        if ($requestMessages[$i]['role'] === 'user') { $lastUserMsg = $requestMessages[$i]['content']; break; }
+        if ($requestMessages[$i]['role'] === 'user') {
+            $c = $requestMessages[$i]['content'];
+            if (is_array($c)) {
+                // multimodal: extract text parts for DB storage
+                $textParts = array_filter($c, fn($p) => ($p['type'] ?? '') === 'text');
+                $lastUserMsg = implode(' ', array_column(array_values($textParts), 'text'));
+                $imgCount = count(array_filter($c, fn($p) => ($p['type'] ?? '') === 'image_url'));
+                if ($imgCount) $lastUserMsg .= " [+{$imgCount} รูปภาพ]";
+            } else {
+                $lastUserMsg = $c;
+            }
+            break;
+        }
     }
     if ($lastUserMsg !== null) {
         chatDb()->prepare('INSERT INTO messages (conversation_id, role, content) VALUES (?,?,?)')->execute([$convId, 'user', $lastUserMsg]);
@@ -1288,15 +1300,44 @@ endif;
             margin: 0 auto;
         }
         
+        /* ── Attachment preview ── */
+        .attach-preview {
+            display: flex; gap: 8px; flex-wrap: wrap;
+            padding: 8px 0 4px;
+        }
+        .attach-chip {
+            display: flex; align-items: center; gap: 6px;
+            background: rgba(99,102,241,.15); border: 1px solid rgba(99,102,241,.3);
+            border-radius: 8px; padding: 4px 8px; font-size: 12px; color: var(--text-chat);
+            max-width: 220px;
+        }
+        .attach-chip img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+        .attach-chip .chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .attach-chip .chip-rm {
+            cursor: pointer; opacity: .6; flex-shrink: 0; font-size: 14px; line-height: 1;
+            background: none; border: none; color: inherit; padding: 0 2px;
+        }
+        .attach-chip .chip-rm:hover { opacity: 1; }
+        .attach-btn {
+            width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border2);
+            background: transparent; color: var(--muted-chat); cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: .2s; flex-shrink: 0;
+        }
+        .attach-btn:hover { background: var(--hover-bg); color: var(--text-chat); border-color: rgba(99,102,241,.5); }
+        .attach-btn svg { width: 16px; height: 16px; }
+
         .input-box {
             display: flex;
-            align-items: flex-end;
-            gap: 12px;
+            flex-direction: column;
             background-color: var(--panel-bg);
             border: 1px solid var(--border2);
             border-radius: 16px;
             padding: 12px 16px;
             transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-row {
+            display: flex; align-items: flex-end; gap: 12px;
         }
         
         .input-box:focus-within {
@@ -1749,24 +1790,33 @@ endif;
                         ⚠️ ขณะนี้ไม่มี AI Model ที่เปิดใช้งาน — กรุณาติดต่อผู้ดูแลระบบ
                     </div>
                     <?php else: ?>
+                    <input type="file" id="fileInput" multiple accept="image/*,.pdf,.txt,.md,.csv,.json,.py,.js,.ts,.php,.html,.css,.xml,.yaml,.yml" style="display:none">
                     <div class="input-box" id="inputBox">
-                        <textarea
-                            id="messageInput"
-                            placeholder="Message AI..."
-                            rows="1"
-                            autofocus
-                        ></textarea>
-                        <button class="send-btn" id="sendBtn" disabled>
-                            <svg viewBox="0 0 24 24">
-                                <line x1="22" y1="2" x2="11" y2="13"></line>
-                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                            </svg>
-                        </button>
-                        <button class="stop-btn" id="stopBtn">
-                            <svg viewBox="0 0 24 24">
-                                <rect x="6" y="6" width="12" height="12" rx="2"></rect>
-                            </svg>
-                        </button>
+                        <div id="attachPreview" class="attach-preview" style="display:none"></div>
+                        <div class="input-row">
+                            <button class="attach-btn" id="attachBtn" type="button" title="แนบไฟล์หรือรูปภาพ">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                                </svg>
+                            </button>
+                            <textarea
+                                id="messageInput"
+                                placeholder="Message AI..."
+                                rows="1"
+                                autofocus
+                            ></textarea>
+                            <button class="send-btn" id="sendBtn" disabled>
+                                <svg viewBox="0 0 24 24">
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                </svg>
+                            </button>
+                            <button class="stop-btn" id="stopBtn">
+                                <svg viewBox="0 0 24 24">
+                                    <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="input-footer">
                         <!-- Token Donut Chart -->
@@ -1994,7 +2044,7 @@ endif;
             $messageInput.css('height','auto').css('height', Math.min($messageInput[0].scrollHeight, 200) + 'px');
         }
         function updateSendButton() {
-            $sendBtn.prop('disabled', !$messageInput.val().trim() || isStreaming);
+            $sendBtn.prop('disabled', (!$messageInput.val().trim() && !pendingAttachments.length) || isStreaming);
         }
         function setStreamingState(s) {
             isStreaming = s;
@@ -2173,10 +2223,104 @@ endif;
         function openSidebar()  { $sidebar.addClass('open');    $sidebarOverlay.addClass('show'); }
         function closeSidebar() { $sidebar.removeClass('open'); $sidebarOverlay.removeClass('show'); }
 
+        // ── File attachment ──────────────────────────────────────────────
+        let pendingAttachments = []; // [{name, type, dataUrl}]
+
+        function fileToDataUrl(file) {
+            return new Promise((res, rej) => {
+                const r = new FileReader();
+                r.onload = e => res(e.target.result);
+                r.onerror = rej;
+                r.readAsDataURL(file);
+            });
+        }
+
+        async function addAttachments(files) {
+            for (const file of files) {
+                if (file.size > 20 * 1024 * 1024) { alert(`ไฟล์ "${file.name}" ใหญ่เกิน 20MB`); continue; }
+                const dataUrl = await fileToDataUrl(file);
+                pendingAttachments.push({ name: file.name, type: file.type, dataUrl });
+            }
+            renderAttachPreview();
+        }
+
+        function renderAttachPreview() {
+            const box = document.getElementById('attachPreview');
+            if (!pendingAttachments.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+            box.style.display = 'flex';
+            box.innerHTML = pendingAttachments.map((a, i) => {
+                const isImg = a.type.startsWith('image/');
+                const thumb = isImg ? `<img src="${a.dataUrl}" alt="">` : `<span style="font-size:18px">${fileEmoji(a.type)}</span>`;
+                return `<div class="attach-chip">${thumb}<span class="chip-name" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i})" title="ลบ">✕</button></div>`;
+            }).join('');
+            updateSendButton();
+        }
+
+        function fileEmoji(mime) {
+            if (mime.startsWith('image/')) return '🖼️';
+            if (mime === 'application/pdf') return '📄';
+            if (mime.startsWith('text/') || /json|yaml|xml|csv/.test(mime)) return '📝';
+            return '📎';
+        }
+
+        function removeAttachment(i) {
+            pendingAttachments.splice(i, 1);
+            renderAttachPreview();
+        }
+
+        $('#attachBtn').on('click', () => document.getElementById('fileInput').click());
+        document.getElementById('fileInput').addEventListener('change', function() {
+            addAttachments([...this.files]);
+            this.value = '';
+        });
+        // Drag & drop onto input box
+        document.getElementById('inputBox').addEventListener('dragover', e => { e.preventDefault(); e.currentTarget.style.borderColor='rgba(99,102,241,.6)'; });
+        document.getElementById('inputBox').addEventListener('dragleave', e => { e.currentTarget.style.borderColor=''; });
+        document.getElementById('inputBox').addEventListener('drop', e => {
+            e.preventDefault(); e.currentTarget.style.borderColor='';
+            addAttachments([...e.dataTransfer.files]);
+        });
+
         // ── Streaming API call ───────────────────────────────────────────
         async function sendMessage(userMessage) {
-            messages.push({ role: 'user', content: userMessage });
-            appendMessage('user', userMessage);
+            // Build content: text + attachments
+            let userContent;
+            if (pendingAttachments.length > 0) {
+                userContent = [{ type: 'text', text: userMessage }];
+                for (const att of pendingAttachments) {
+                    if (att.type.startsWith('image/')) {
+                        userContent.push({ type: 'image_url', image_url: { url: att.dataUrl } });
+                    } else {
+                        // Text/code files: embed as text block
+                        try {
+                            const b64 = att.dataUrl.split(',')[1];
+                            const text = atob(b64);
+                            userContent.push({ type: 'text', text: `\n\n[ไฟล์: ${att.name}]\n\`\`\`\n${text}\n\`\`\`` });
+                        } catch { userContent.push({ type: 'text', text: `\n\n[ไฟล์แนบ: ${att.name}]` }); }
+                    }
+                }
+            } else {
+                userContent = userMessage;
+            }
+
+            // Display: show text + thumbnails in chat
+            let displayHtml = escapeHtml(userMessage);
+            if (pendingAttachments.length) {
+                const thumbs = pendingAttachments.map(a =>
+                    a.type.startsWith('image/')
+                        ? `<img src="${a.dataUrl}" style="max-height:120px;max-width:200px;border-radius:8px;margin-top:6px;display:block">`
+                        : `<div style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:4px 8px;background:rgba(99,102,241,.12);border-radius:6px;font-size:12px">${fileEmoji(a.type)} ${escapeHtml(a.name)}</div>`
+                ).join('');
+                displayHtml += thumbs;
+            }
+
+            messages.push({ role: 'user', content: userContent });
+            const msgEl = appendMessage('user', '');
+            $('#' + msgEl + ' .message-content').html(displayHtml);
+
+            pendingAttachments = [];
+            renderAttachPreview();
+
             $messageInput.val('');
             autoResizeTextarea();
             updateSendButton();
@@ -2265,9 +2409,9 @@ endif;
         }
 
         // ── Event Handlers ───────────────────────────────────────────────
-        $sendBtn.on('click', () => { const m = $messageInput.val().trim(); if (m && !isStreaming) sendMessage(m); });
+        $sendBtn.on('click', () => { const m = $messageInput.val().trim(); if ((m || pendingAttachments.length) && !isStreaming) sendMessage(m || '📎'); });
         $messageInput.on('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const m = $(this).val().trim(); if (m && !isStreaming) sendMessage(m); }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const m = $(this).val().trim(); if ((m || pendingAttachments.length) && !isStreaming) sendMessage(m || '📎'); }
         });
         $messageInput.on('input', () => { autoResizeTextarea(); updateSendButton(); });
         $stopBtn.on('click', () => setStreamingState(false));
