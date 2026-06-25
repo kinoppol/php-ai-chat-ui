@@ -176,25 +176,47 @@ if (!$adminId) {
     exit;
 }
 
-// ─── AJAX: import discovered models ──────────────────────────────────────────
+// ─── AJAX: sync discovered models (selected=active, unselected=inactive) ──────
 if (isset($_GET['api']) && $_GET['api'] === 'import_models') {
     header('Content-Type: application/json; charset=utf-8');
     $serverId = (int)($_POST['server_id'] ?? 0);
-    $names    = json_decode($_POST['models'] ?? '[]', true);
-    if (!is_array($names) || empty($names)) { echo json_encode(['ok'=>false,'msg'=>'ไม่มีข้อมูล']); exit; }
-    $imported = 0; $skipped = 0;
-    $maxOrd = (int)db()->query('SELECT COALESCE(MAX(sort_order),0) FROM `models`')->fetchColumn();
-    foreach ($names as $name) {
+    $selected = json_decode($_POST['models'] ?? '[]', true);
+    // allDiscovered = full list from test_connection so we know what to deactivate
+    $allFound = json_decode($_POST['all_models'] ?? '[]', true);
+    if (!is_array($selected)) $selected = [];
+    if (!is_array($allFound))  $allFound  = [];
+
+    $srvVal  = $serverId > 0 ? $serverId : null;
+    $maxOrd  = (int)db()->query('SELECT COALESCE(MAX(sort_order),0) FROM `models`')->fetchColumn();
+    $activated = 0; $deactivated = 0;
+
+    // Upsert selected → is_active=1
+    foreach ($selected as $name) {
         $name = trim((string)$name);
         if (!$name) continue;
-        try {
-            $srvVal = $serverId > 0 ? $serverId : null;
-            db()->prepare('INSERT IGNORE INTO `models` (name, label, sort_order, server_id) VALUES (?,?,?,?)')
+        $exists = db()->prepare('SELECT id FROM `models` WHERE name=? AND (server_id=? OR (server_id IS NULL AND ? IS NULL))');
+        $exists->execute([$name, $srvVal, $srvVal]);
+        if ($exists->fetchColumn()) {
+            db()->prepare('UPDATE `models` SET is_active=1, server_id=? WHERE name=? AND (server_id=? OR (server_id IS NULL AND ? IS NULL))')
+                ->execute([$srvVal, $name, $srvVal, $srvVal]);
+        } else {
+            db()->prepare('INSERT INTO `models` (name, label, is_active, sort_order, server_id) VALUES (?,?,1,?,?)')
                 ->execute([$name, $name, ++$maxOrd, $srvVal]);
-            $imported++;
-        } catch (Throwable) { $skipped++; }
+        }
+        $activated++;
     }
-    echo json_encode(['ok'=>true,'imported'=>$imported,'skipped'=>$skipped]); exit;
+
+    // Deactivate unselected (from full discovered list) that belong to this server
+    $unselected = array_diff($allFound, $selected);
+    foreach ($unselected as $name) {
+        $name = trim((string)$name);
+        if (!$name) continue;
+        $rows = db()->prepare('UPDATE `models` SET is_active=0 WHERE name=? AND (server_id=? OR (server_id IS NULL AND ? IS NULL))');
+        $rows->execute([$name, $srvVal, $srvVal]);
+        $deactivated += $rows->rowCount();
+    }
+
+    echo json_encode(['ok'=>true,'activated'=>$activated,'deactivated'=>$deactivated]); exit;
 }
 
 // ─── POST actions ─────────────────────────────────────────────────────────────
@@ -1853,7 +1875,11 @@ async function testApiConnection() {
     }
 }
 
+// เก็บ full list ที่ตรวจพบไว้ใช้ตอน sync
+let _allDiscoveredModels = [];
+
 function renderDiscoveredModels(models) {
+    _allDiscoveredModels = models;
     const list = document.getElementById('discoveredModelsList');
     list.innerHTML = models.map(m => `
         <label style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-size:13px;transition:.1s" onmouseenter="this.style.background='var(--hover-bg)'" onmouseleave="this.style.background=''">
@@ -1870,25 +1896,24 @@ function selectAllDiscovered(checked) {
 async function importSelectedModels() {
     const serverId = document.getElementById('editServerId')?.value ?? '';
     const selected = [...document.querySelectorAll('#discoveredModelsList input[type=checkbox]:checked')].map(cb => cb.value);
-    if (!selected.length) { document.getElementById('importResult').textContent = 'กรุณาเลือก Model อย่างน้อย 1 รายการ'; return; }
 
     const btn = document.querySelector('#discoveredModelsBox button[onclick="importSelectedModels()"]');
     btn.disabled = true;
-    btn.textContent = '⏳ กำลังนำเข้า…';
+    btn.textContent = '⏳ กำลังซิงค์…';
 
     try {
         const fd = new FormData();
-        fd.append('server_id', serverId);
-        fd.append('models', JSON.stringify(selected));
+        fd.append('server_id',  serverId);
+        fd.append('models',     JSON.stringify(selected));
+        fd.append('all_models', JSON.stringify(_allDiscoveredModels));
         const res  = await fetch('?api=import_models', { method:'POST', body: fd });
         const data = await res.json();
         const msg  = data.ok
-            ? `✓ นำเข้าสำเร็จ ${data.imported} รายการ${data.skipped ? ` (ข้าม ${data.skipped} รายการที่มีอยู่แล้ว)` : ''}`
+            ? `✓ เปิดใช้งาน ${data.activated} รายการ${data.deactivated ? ` · ปิดใช้งาน ${data.deactivated} รายการ` : ''}`
             : `เกิดข้อผิดพลาด: ${data.msg}`;
         document.getElementById('importResult').textContent = msg;
         document.getElementById('importResult').style.color = data.ok ? '#34d399' : '#f87171';
-        if (data.ok && data.imported > 0) {
-            // Reload page after short delay to show updated model list
+        if (data.ok) {
             setTimeout(() => location.reload(), 1200);
         }
     } finally {
