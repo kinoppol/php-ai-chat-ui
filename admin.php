@@ -998,30 +998,6 @@ tr:hover td{background:var(--hover-bg)}
     </div>
     <?php endforeach; ?>
 
-    <!-- ── Global API Fallback ── -->
-    <details style="margin-top:4px">
-        <summary style="cursor:pointer;padding:12px 16px;background:var(--bg4);border:1px solid var(--border2);border-radius:10px;font-size:13px;font-weight:600;color:var(--text2);display:flex;align-items:center;gap:8px;user-select:none">
-            🔧 Global API Fallback <span style="font-size:11px;font-weight:400">(ใช้เมื่อ Model ไม่ได้ผูกกับ Server ใด)</span>
-        </summary>
-        <div style="border:1px solid var(--border2);border-top:none;border-radius:0 0 10px 10px;padding:16px 18px;background:var(--bg2)">
-        <form method="POST">
-        <input type="hidden" name="save_settings" value="1">
-        <div class="fg"><label>API Key</label><input type="text" name="api_key" id="settingApiKey" value="<?= e(getSetting('api_key')) ?>" placeholder="sk-... หรือ ollama"></div>
-        <div class="fg"><label>Base URL</label><input type="text" name="base_url" id="settingBaseUrl" value="<?= e(getSetting('base_url','http://localhost:11434/v1')) ?>">
-            <small>OpenAI: https://api.openai.com/v1 &nbsp;|&nbsp; Ollama: http://localhost:11434/v1 &nbsp;|&nbsp; OpenRouter: https://openrouter.ai/api/v1</small></div>
-        <div style="display:flex;align-items:center;gap:12px;margin-top:4px;flex-wrap:wrap;margin-bottom:12px">
-            <button type="button" class="btn btn-ghost btn-sm" id="testConnBtn" onclick="testApiConnection()">🔌 ทดสอบการเชื่อมต่อ</button>
-            <div id="testConnResult" style="font-size:13px;display:none;padding:7px 14px;border-radius:8px;font-weight:500"></div>
-        </div>
-        <div class="form-grid">
-            <div class="fg"><label>Default Model</label><input type="text" name="model" value="<?= e(getSetting('model','llama3:8b')) ?>"></div>
-            <div class="fg"><label>Max Tokens</label><input type="number" name="max_tokens" value="<?= e(getSetting('max_tokens','4096')) ?>" min="256" max="128000"></div>
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm">💾 บันทึก Global API</button>
-        </form>
-        </div>
-    </details>
-
     <!-- Edit Server Modal -->
     <div class="modal-bg" id="editServerModal">
         <div class="modal">
@@ -1030,8 +1006,12 @@ tr:hover td{background:var(--hover-bg)}
                 <input type="hidden" name="edit_api_server" value="1">
                 <input type="hidden" name="edit_server_id" id="editServerId">
                 <div class="fg"><label>ชื่อ Server</label><input type="text" name="edit_server_name" id="editServerName" required></div>
-                <div class="fg"><label>Base URL</label><input type="text" name="edit_server_base_url" id="editServerBaseUrl" required></div>
-                <div class="fg"><label>API Key</label><input type="text" name="edit_server_api_key" id="editServerApiKey"></div>
+                <div class="fg"><label>Base URL</label><input type="text" name="base_url" id="settingBaseUrl" required></div>
+                <div class="fg"><label>API Key</label><input type="text" name="api_key" id="settingApiKey"></div>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap">
+                    <button type="button" class="btn btn-ghost btn-sm" id="testConnBtn" onclick="testApiConnection()">🔌 ทดสอบการเชื่อมต่อ</button>
+                    <div id="testConnResult" style="font-size:13px;display:none;padding:6px 12px;border-radius:8px;font-weight:500"></div>
+                </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-primary">💾 บันทึก</button>
                     <button type="button" class="btn btn-ghost" onclick="closeModal('editServerModal')">ยกเลิก</button>
@@ -1076,10 +1056,11 @@ tr:hover td{background:var(--hover-bg)}
 
     <script>
     function openEditServer(id, name, url, key) {
-        document.getElementById('editServerId').value      = id;
-        document.getElementById('editServerName').value    = name;
-        document.getElementById('editServerBaseUrl').value = url;
-        document.getElementById('editServerApiKey').value  = key;
+        document.getElementById('editServerId').value   = id;
+        document.getElementById('editServerName').value = name;
+        document.getElementById('settingBaseUrl').value = url;
+        document.getElementById('settingApiKey').value  = key;
+        document.getElementById('testConnResult').style.display = 'none';
         document.getElementById('editServerModal').classList.add('open');
     }
     </script>
