@@ -721,9 +721,10 @@ tr:hover td{background:var(--hover-bg)}
 /* ── Modals ── */
 .modal-bg{display:none;position:fixed;inset:0;background:var(--overlay);z-index:200;align-items:center;justify-content:center}
 .modal-bg.open{display:flex}
-.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:28px 32px;width:480px;max-width:92vw;max-height:88vh;overflow-y:auto}
-.modal h3{font-size:16px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px}
-.modal-footer{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;width:480px;max-width:92vw;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.modal h3{font-size:16px;font-weight:700;padding:22px 28px 16px;border-bottom:1px solid var(--border);margin:0;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.modal form,.modal>.modal-body{flex:1;overflow-y:auto;padding:20px 28px;min-height:0}
+.modal-footer{display:flex;gap:10px;flex-wrap:wrap;padding:16px 28px;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg2)}
 
 /* ── Drag handle (models) ── */
 .drag-handle{cursor:grab;color:var(--muted);padding:4px;font-size:16px;user-select:none}
