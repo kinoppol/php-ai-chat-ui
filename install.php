@@ -225,16 +225,36 @@ input:focus{border-color:#5436da;box-shadow:0 0 0 3px rgba(84,54,218,.15)}
 
     <?php
         // ── System Requirements Check ──────────────────────────────────
+        // ── Permission checks ──────────────────────────────────────────────
+        $uploadsDir      = __DIR__ . '/uploads';
+        $uploadsDirExists = is_dir($uploadsDir);
+        $uploadsMkdir     = false;
+        if (!$uploadsDirExists) {
+            $uploadsMkdir = @mkdir($uploadsDir, 0755, true);
+            if ($uploadsMkdir) {
+                @file_put_contents($uploadsDir . '/.htaccess', "Deny from all\n");
+            }
+        }
+        $uploadsWritable  = is_writable($uploadsDirExists ? $uploadsDir : ($uploadsMkdir ? $uploadsDir : __DIR__));
+        $uploadsOk        = ($uploadsDirExists || $uploadsMkdir) && is_writable($uploadsDir);
+        $uploadsVal       = $uploadsOk
+            ? ($uploadsDirExists ? 'มีอยู่แล้ว เขียนได้' : 'สร้างสำเร็จ เขียนได้')
+            : ($uploadsMkdir ? 'สร้างได้แต่เขียนไม่ได้ — chmod 755 uploads/' : ($uploadsDirExists ? 'มีอยู่แล้วแต่เขียนไม่ได้ — chmod 755 uploads/' : 'สร้างไม่ได้ — ตรวจสอบสิทธิ์โฟลเดอร์'));
+        $configWritable  = is_writable(__DIR__) || is_writable(__DIR__ . '/config.php');
+        $configVal       = $configWritable ? 'เขียนได้' : 'เขียนไม่ได้ — chmod 644 config.php หรือ chmod 755 ' . basename(__DIR__);
+
         $reqs = [
-            ['label'=>'PHP ≥ 8.0',       'ok'=> version_compare(PHP_VERSION,'8.0.0','>='), 'val'=> PHP_VERSION],
-            ['label'=>'PDO MySQL',        'ok'=> extension_loaded('pdo_mysql'),              'val'=> extension_loaded('pdo_mysql') ? 'ติดตั้งแล้ว' : 'ไม่พบ — ต้องติดตั้ง php-mysql'],
-            ['label'=>'cURL',             'ok'=> function_exists('curl_init'),               'val'=> function_exists('curl_init') ? 'ติดตั้งแล้ว' : 'ไม่พบ — ต้องติดตั้ง php-curl (แนะนำ)'],
-            ['label'=>'mbstring',         'ok'=> extension_loaded('mbstring'),               'val'=> extension_loaded('mbstring') ? 'ติดตั้งแล้ว' : 'ไม่พบ — ต้องติดตั้ง php-mbstring'],
-            ['label'=>'JSON',             'ok'=> function_exists('json_encode'),             'val'=> function_exists('json_encode') ? 'ติดตั้งแล้ว' : 'ไม่พบ'],
-            ['label'=>'allow_url_fopen', 'ok'=> (bool)ini_get('allow_url_fopen'),           'val'=> ini_get('allow_url_fopen') ? 'เปิดอยู่' : 'ปิดอยู่ (ต้องเปิดถ้าไม่มี cURL)'],
+            ['label'=>'PHP ≥ 8.0',          'ok'=> version_compare(PHP_VERSION,'8.0.0','>='), 'val'=> PHP_VERSION],
+            ['label'=>'PDO MySQL',           'ok'=> extension_loaded('pdo_mysql'),              'val'=> extension_loaded('pdo_mysql') ? 'ติดตั้งแล้ว' : 'ไม่พบ — ต้องติดตั้ง php-mysql'],
+            ['label'=>'cURL',                'ok'=> function_exists('curl_init'),               'val'=> function_exists('curl_init') ? 'ติดตั้งแล้ว' : 'ไม่พบ — ต้องติดตั้ง php-curl (แนะนำ)'],
+            ['label'=>'mbstring',            'ok'=> extension_loaded('mbstring'),               'val'=> extension_loaded('mbstring') ? 'ติดตั้งแล้ว' : 'ไม่พบ — ต้องติดตั้ง php-mbstring'],
+            ['label'=>'JSON',                'ok'=> function_exists('json_encode'),             'val'=> function_exists('json_encode') ? 'ติดตั้งแล้ว' : 'ไม่พบ'],
+            ['label'=>'allow_url_fopen',     'ok'=> (bool)ini_get('allow_url_fopen'),           'val'=> ini_get('allow_url_fopen') ? 'เปิดอยู่' : 'ปิดอยู่ (ต้องเปิดถ้าไม่มี cURL)'],
+            ['label'=>'โฟลเดอร์ uploads/',   'ok'=> $uploadsOk,                                 'val'=> $uploadsVal],
+            ['label'=>'เขียน config.php',    'ok'=> $configWritable,                            'val'=> $configVal],
         ];
         $hasWarning = in_array(false, array_column($reqs, 'ok'));
-        $critFail   = !extension_loaded('pdo_mysql'); // PDO คือ required จริงๆ
+        $critFail   = !extension_loaded('pdo_mysql') || !$configWritable; // PDO + config writable คือ required
     ?>
     <div style="margin-bottom:24px">
         <div style="font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">
@@ -248,12 +268,25 @@ input:focus{border-color:#5436da;box-shadow:0 0 0 3px rgba(84,54,218,.15)}
             </div>
         <?php endforeach; ?>
         </div>
-        <?php if ($critFail): ?>
+        <?php if (!extension_loaded('pdo_mysql')): ?>
         <div style="margin-top:10px;padding:10px 14px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:13px;color:#f87171">
             ❌ <strong>PDO MySQL ไม่พร้อมใช้งาน</strong> — ไม่สามารถดำเนินการติดตั้งได้<br>
             <span style="opacity:.8">Debian/Ubuntu: <code>sudo apt install php-mysql && sudo systemctl restart apache2</code></span>
         </div>
-        <?php elseif (!function_exists('curl_init')): ?>
+        <?php endif; ?>
+        <?php if (!$configWritable): ?>
+        <div style="margin-top:10px;padding:10px 14px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:13px;color:#f87171">
+            ❌ <strong>ไม่สามารถเขียน config.php ได้</strong> — ไม่สามารถดำเนินการติดตั้งได้<br>
+            <span style="opacity:.8">รัน: <code>chmod 755 <?= htmlspecialchars(basename(__DIR__)) ?></code> หรือ <code>touch config.php && chmod 644 config.php</code></span>
+        </div>
+        <?php endif; ?>
+        <?php if (!$uploadsOk): ?>
+        <div style="margin-top:10px;padding:10px 14px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:8px;font-size:13px;color:#fbbf24">
+            ⚠️ <strong>โฟลเดอร์ uploads/ มีปัญหา</strong> — การแนบไฟล์จะไม่ทำงาน<br>
+            <span style="opacity:.8">รัน: <code>mkdir uploads && chmod 755 uploads</code></span>
+        </div>
+        <?php endif; ?>
+        <?php if (!function_exists('curl_init')): ?>
         <div style="margin-top:10px;padding:10px 14px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:8px;font-size:13px;color:#fbbf24">
             ⚠️ <strong>cURL ไม่ได้ติดตั้ง</strong> — ระบบจะใช้ <code>file_get_contents</code> แทน (ทำงานได้แต่ช้ากว่า)<br>
             <span style="opacity:.8">แนะนำ: <code>sudo apt install php-curl && sudo systemctl restart apache2</code></span>
