@@ -405,6 +405,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (array_key_exists($f, $_POST)) setSetting($f, trim($_POST[$f]));
         }
         setSetting('allow_registration', isset($_POST['allow_registration']) ? '1' : '0');
+        $slMb = max(1, (int)($_POST['conv_storage_limit_mb'] ?? 200));
+        setSetting('conv_storage_limit_mb', (string)$slMb);
         header('Location: admin.php?page=general_settings&msg=' . urlencode('บันทึกการตั้งค่าสำเร็จ')); exit;
     }
 
@@ -1217,6 +1219,16 @@ tr:hover td{background:var(--hover-bg)}
                 <label>ข้อความแจ้งผู้ลงทะเบียน</label>
                 <input type="text" name="registration_note" value="<?= e(getSetting('registration_note','กรุณารอการอนุมัติจาก Admin ก่อนเข้าใช้งาน')) ?>">
                 <small>แสดงใต้ฟอร์มลงทะเบียน และหลังส่งคำขอสำเร็จ</small>
+            </div>
+        </div>
+    </div>
+    <div class="panel">
+        <div class="panel-head">📁 ไฟล์แนบ</div>
+        <div class="panel-body">
+            <div class="fg">
+                <label>ขนาดไฟล์สูงสุดต่อการสนทนา (MB)</label>
+                <input type="number" name="conv_storage_limit_mb" min="1" max="10000" value="<?= e(getSetting('conv_storage_limit_mb','200')) ?>" style="max-width:120px">
+                <small>รวมทุกไฟล์ที่แนบในการสนทนาเดียว ไฟล์ที่เกินขนาดจะถูกปฏิเสธ</small>
             </div>
         </div>
     </div>

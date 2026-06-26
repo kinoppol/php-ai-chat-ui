@@ -233,25 +233,97 @@ if (isset($_GET['api']) && $_GET['api'] === 'token_status' && $authenticated) {
     exit;
 }
 
+// ─── File upload dir helper ───────────────────────────────────────────────────
+function uploadDir(): string {
+    $dir = __DIR__ . '/uploads';
+    if (!is_dir($dir)) { mkdir($dir, 0755, true); }
+    return $dir;
+}
+function uploadPath(string $uuid): string { return uploadDir() . '/' . $uuid; }
+
+// ─── API: Upload file ─────────────────────────────────────────────────────────
+if (isset($_GET['api']) && $_GET['api'] === 'upload' && $authenticated) {
+    header('Content-Type: application/json');
+    if (empty($_FILES['files'])) { echo json_encode(['ok'=>false,'msg'=>'ไม่มีไฟล์']); exit; }
+    $limitMb = (int)(chatDb()->query("SELECT value FROM settings WHERE `key`='conv_storage_limit_mb'")->fetchColumn() ?: 200);
+    $results = [];
+    foreach ($_FILES['files']['tmp_name'] as $i => $tmp) {
+        if ($_FILES['files']['error'][$i] !== UPLOAD_ERR_OK) continue;
+        $name = basename($_FILES['files']['name'][$i]);
+        $mime = $_FILES['files']['type'][$i] ?: mime_content_type($tmp) ?: 'application/octet-stream';
+        $size = (int)$_FILES['files']['size'][$i];
+        if ($size > 20 * 1024 * 1024) { $results[] = ['ok'=>false,'name'=>$name,'msg'=>'ไฟล์ใหญ่เกิน 20MB']; continue; }
+        $uuid = bin2hex(random_bytes(16));
+        $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        $stored = $uuid . ($ext ? '.' . $ext : '');
+        if (!move_uploaded_file($tmp, uploadPath($stored))) { $results[] = ['ok'=>false,'name'=>$name,'msg'=>'บันทึกไฟล์ล้มเหลว']; continue; }
+        chatDb()->prepare('INSERT INTO conversation_files (uuid, user_id, original_name, mime_type, size) VALUES (?,?,?,?,?)')
+            ->execute([$uuid, $currentUserId, $name, $mime, $size]);
+        $results[] = ['ok'=>true,'uuid'=>$uuid,'name'=>$name,'mime'=>$mime,'size'=>$size,'url'=>"chat.php?file={$uuid}"];
+    }
+    echo json_encode(['ok'=>true,'files'=>$results]); exit;
+}
+
+// ─── Serve uploaded file ──────────────────────────────────────────────────────
+if (isset($_GET['file']) && $authenticated) {
+    $uuid = preg_replace('/[^a-f0-9]/i', '', $_GET['file']);
+    $row  = chatDb()->prepare('SELECT original_name, mime_type, user_id, conversation_id FROM conversation_files WHERE uuid=?');
+    $row->execute([$uuid]);
+    $f = $row->fetch(PDO::FETCH_ASSOC);
+    if (!$f) { http_response_code(404); exit('Not found'); }
+    // Allow owner or admin
+    if ((int)$f['user_id'] !== $currentUserId) { http_response_code(403); exit('Forbidden'); }
+    // Find stored file
+    $glob = glob(uploadDir() . '/' . $uuid . '*');
+    if (!$glob) { http_response_code(404); exit('File missing'); }
+    $path = $glob[0];
+    header('Content-Type: ' . ($f['mime_type'] ?: 'application/octet-stream'));
+    header('Content-Length: ' . filesize($path));
+    header('Cache-Control: private, max-age=86400');
+    header('Content-Disposition: inline; filename="' . addslashes($f['original_name']) . '"');
+    readfile($path); exit;
+}
+
 // ─── API: Get messages for a conversation (AJAX) ─────────────────────────────
 if (isset($_GET['api']) && $_GET['api'] === 'msgs' && $authenticated) {
     header('Content-Type: application/json');
     $cid = (int)($_GET['cid'] ?? 0);
-    // Verify ownership
     $stmt = chatDb()->prepare('SELECT id FROM conversations WHERE id = ? AND user_id = ?');
     $stmt->execute([$cid, $currentUserId]);
     if (!$stmt->fetch()) { echo json_encode([]); exit; }
 
-    $stmt = chatDb()->prepare('SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY created_at ASC');
-    $stmt->execute([$cid]);
-    echo json_encode($stmt->fetchAll());
-    exit;
+    $msgs = chatDb()->prepare('SELECT id, role, content FROM messages WHERE conversation_id = ? ORDER BY created_at ASC');
+    $msgs->execute([$cid]);
+    $rows = $msgs->fetchAll(PDO::FETCH_ASSOC);
+
+    // Attach file metadata per message
+    $msgIds = array_column($rows, 'id');
+    $filesByMsg = [];
+    if ($msgIds) {
+        $ph   = implode(',', array_fill(0, count($msgIds), '?'));
+        $fstmt = chatDb()->prepare("SELECT message_id, uuid, original_name, mime_type FROM conversation_files WHERE message_id IN ($ph)");
+        $fstmt->execute($msgIds);
+        foreach ($fstmt->fetchAll(PDO::FETCH_ASSOC) as $fr) {
+            $filesByMsg[(int)$fr['message_id']][] = ['uuid'=>$fr['uuid'],'name'=>$fr['original_name'],'mime'=>$fr['mime_type'],'url'=>'chat.php?file='.$fr['uuid']];
+        }
+    }
+    $result = [];
+    foreach ($rows as $r) {
+        $result[] = ['role'=>$r['role'], 'content'=>$r['content'], 'files'=>$filesByMsg[(int)$r['id']] ?? []];
+    }
+    echo json_encode($result); exit;
 }
 
 // ─── API: Delete conversation (AJAX) ─────────────────────────────────────────
 if (isset($_GET['api']) && $_GET['api'] === 'del_conv' && $authenticated && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     $cid = (int)(json_decode(file_get_contents('php://input'), true)['id'] ?? 0);
+    // Delete physical files first
+    $frows = chatDb()->prepare('SELECT uuid FROM conversation_files WHERE conversation_id=?');
+    $frows->execute([$cid]);
+    foreach ($frows->fetchAll(PDO::FETCH_COLUMN) as $uuid) {
+        foreach (glob(uploadDir() . '/' . $uuid . '*') ?: [] as $fp) { @unlink($fp); }
+    }
     chatDb()->prepare('DELETE FROM conversations WHERE id = ? AND user_id = ?')->execute([$cid, $currentUserId]);
     echo json_encode(['ok' => true]);
     exit;
@@ -285,6 +357,7 @@ if (isset($_GET['stream']) && $_GET['stream'] == '1' && $authenticated) {
     $requestModel    = $data['model'] ?? $model;
     $convId          = isset($data['conv_id']) ? (int)$data['conv_id'] : 0;
     $convTitle       = $data['conv_title'] ?? 'New Chat';
+    $fileUuids       = array_filter(array_map('trim', (array)($data['file_uuids'] ?? [])));
 
     // ── Token limit check + auto-reset ───────────────────────────────────
     $userRow = chatDb()->prepare('SELECT token_limit, tokens_used, tokens_reset_at, token_reset_hours FROM users WHERE id = ?');
@@ -350,26 +423,79 @@ if (isset($_GET['stream']) && $_GET['stream'] == '1' && $authenticated) {
         chatDb()->prepare('UPDATE conversations SET model=?, updated_at=NOW() WHERE id=?')->execute([$requestModel, $convId]);
     }
 
+    // Check storage limit if files attached
+    if ($fileUuids && $convId) {
+        $limitMb  = (int)(chatDb()->query("SELECT value FROM settings WHERE `key`='conv_storage_limit_mb'")->fetchColumn() ?: 200);
+        $stUsed   = chatDb()->prepare('SELECT COALESCE(SUM(size),0) FROM conversation_files WHERE conversation_id=?');
+        $stUsed->execute([$convId]);
+        $usedBytes = (int)$stUsed->fetchColumn();
+        $ph        = implode(',', array_fill(0, count($fileUuids), '?'));
+        $stNew     = chatDb()->prepare("SELECT COALESCE(SUM(size),0) FROM conversation_files WHERE uuid IN ($ph)");
+        $stNew->execute($fileUuids);
+        $newBytes  = (int)$stNew->fetchColumn();
+        if (($usedBytes + $newBytes) > $limitMb * 1024 * 1024) {
+            echo "data: " . json_encode(['error' => "เกินขีดจำกัดพื้นที่เก็บไฟล์ต่อการสนทนา ({$limitMb} MB)"]) . "\n\n"; flush(); exit;
+        }
+    }
+
     // Save the last user message to DB (extract text from content array or plain string)
     $lastUserMsg = null;
     for ($i = count($requestMessages) - 1; $i >= 0; $i--) {
         if ($requestMessages[$i]['role'] === 'user') {
             $c = $requestMessages[$i]['content'];
             if (is_array($c)) {
-                // multimodal: extract text parts for DB storage
                 $textParts = array_filter($c, fn($p) => ($p['type'] ?? '') === 'text');
                 $lastUserMsg = implode(' ', array_column(array_values($textParts), 'text'));
-                $imgCount = count(array_filter($c, fn($p) => ($p['type'] ?? '') === 'image_url'));
-                if ($imgCount) $lastUserMsg .= " [+{$imgCount} รูปภาพ]";
             } else {
                 $lastUserMsg = $c;
             }
             break;
         }
     }
+    $userMsgId = null;
     if ($lastUserMsg !== null) {
-        chatDb()->prepare('INSERT INTO messages (conversation_id, role, content) VALUES (?,?,?)')->execute([$convId, 'user', $lastUserMsg]);
+        $ins = chatDb()->prepare('INSERT INTO messages (conversation_id, role, content) VALUES (?,?,?)');
+        $ins->execute([$convId, 'user', $lastUserMsg]);
+        $userMsgId = (int)chatDb()->lastInsertId();
     }
+
+    // Associate uploaded files with this conversation + message
+    if ($fileUuids && $userMsgId) {
+        $ph = implode(',', array_fill(0, count($fileUuids), '?'));
+        chatDb()->prepare("UPDATE conversation_files SET conversation_id=?, message_id=? WHERE uuid IN ($ph) AND user_id=? AND conversation_id IS NULL")
+            ->execute([$convId, $userMsgId, ...$fileUuids, $currentUserId]);
+    }
+
+    // Build multimodal content for API from stored files
+    if ($fileUuids) {
+        $ph    = implode(',', array_fill(0, count($fileUuids), '?'));
+        $fRows = chatDb()->prepare("SELECT uuid, original_name, mime_type FROM conversation_files WHERE uuid IN ($ph)");
+        $fRows->execute($fileUuids);
+        $fileRows = $fRows->fetchAll(PDO::FETCH_ASSOC);
+
+        // Replace last user message content with multimodal array
+        for ($i = count($requestMessages) - 1; $i >= 0; $i--) {
+            if ($requestMessages[$i]['role'] === 'user') {
+                $textContent = is_string($requestMessages[$i]['content'])
+                    ? $requestMessages[$i]['content']
+                    : (implode(' ', array_column(array_filter((array)$requestMessages[$i]['content'], fn($p)=>($p['type']??'')===('text')), 'text')));
+                $parts = [['type'=>'text','text'=>$textContent]];
+                foreach ($fileRows as $fr) {
+                    $glob = glob(uploadDir() . '/' . $fr['uuid'] . '*');
+                    if (!$glob) continue;
+                    $b64  = base64_encode(file_get_contents($glob[0]));
+                    if (str_starts_with($fr['mime_type'], 'image/')) {
+                        $parts[] = ['type'=>'image_url','image_url'=>['url'=>"data:{$fr['mime_type']};base64,{$b64}"]];
+                    } else {
+                        $text = base64_decode($b64);
+                        $parts[] = ['type'=>'text','text'=>"\n\n[ไฟล์: {$fr['original_name']}]\n```\n{$text}\n```"];
+                    }
+                }
+                $requestMessages[$i]['content'] = $parts;
+                break;
+            }
+        }
+    } // end if ($fileUuids)
 
     // Prepend system prompt for API call
     $apiMessages = $requestMessages;
@@ -2196,10 +2322,23 @@ endif;
                 const res  = await fetch(`?api=msgs&cid=${convId}`);
                 const msgs = await res.json();
                 currentConvId = convId;
-                messages = msgs;
+                messages = msgs.map(m => ({ role: m.role, content: m.content }));
                 $chatMessages.empty();
                 if (!msgs.length) { $chatMessages.append($emptyState.show()); }
-                else { $emptyState.hide(); msgs.forEach(m => appendMessage(m.role, m.content)); }
+                else {
+                    $emptyState.hide();
+                    msgs.forEach(m => {
+                        const el = appendMessage(m.role, m.content);
+                        if (m.role === 'user' && m.files?.length) {
+                            const thumbs = m.files.map(f =>
+                                f.mime.startsWith('image/')
+                                    ? `<img src="${f.url}" style="max-height:120px;max-width:200px;border-radius:8px;margin-top:6px;display:block">`
+                                    : `<div style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:4px 8px;background:rgba(99,102,241,.12);border-radius:6px;font-size:12px">${fileEmoji(f.mime)} ${escapeHtml(f.name)}</div>`
+                            ).join('');
+                            $('#' + el + ' .message-content').append(thumbs);
+                        }
+                    });
+                }
                 renderChatHistory();
                 closeSidebar();
             } catch(e) { showError('โหลดการสนทนาล้มเหลว'); }
@@ -2226,103 +2365,84 @@ endif;
         function closeSidebar() { $sidebar.removeClass('open'); $sidebarOverlay.removeClass('show'); }
 
         // ── File attachment ──────────────────────────────────────────────
-        let pendingAttachments = []; // [{name, type, dataUrl}]
-
-        function fileToDataUrl(file) {
-            return new Promise((res, rej) => {
-                const r = new FileReader();
-                r.onload = e => res(e.target.result);
-                r.onerror = rej;
-                r.readAsDataURL(file);
-            });
-        }
-
-        async function addAttachments(files) {
-            for (const file of files) {
-                if (file.size > 20 * 1024 * 1024) { alert(`ไฟล์ "${file.name}" ใหญ่เกิน 20MB`); continue; }
-                const dataUrl = await fileToDataUrl(file);
-                pendingAttachments.push({ name: file.name, type: file.type, dataUrl });
-            }
-            renderAttachPreview();
-        }
-
-        function renderAttachPreview() {
-            const box = document.getElementById('attachPreview');
-            if (!pendingAttachments.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
-            box.style.display = 'flex';
-            box.innerHTML = pendingAttachments.map((a, i) => {
-                const isImg = a.type.startsWith('image/');
-                const thumb = isImg ? `<img src="${a.dataUrl}" alt="">` : `<span style="font-size:18px">${fileEmoji(a.type)}</span>`;
-                return `<div class="attach-chip">${thumb}<span class="chip-name" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i})" title="ลบ">✕</button></div>`;
-            }).join('');
-            updateSendButton();
-        }
+        let pendingAttachments = []; // [{uuid, name, mime, url, uploading}]
 
         function fileEmoji(mime) {
-            if (mime.startsWith('image/')) return '🖼️';
+            if (!mime || mime.startsWith('image/')) return '🖼️';
             if (mime === 'application/pdf') return '📄';
             if (mime.startsWith('text/') || /json|yaml|xml|csv/.test(mime)) return '📝';
             return '📎';
         }
 
-        function removeAttachment(i) {
-            pendingAttachments.splice(i, 1);
-            renderAttachPreview();
+        function renderAttachPreview() {
+            const box = document.getElementById('attachPreview');
+            if (!pendingAttachments.length) { box.style.display='none'; box.innerHTML=''; updateSendButton(); return; }
+            box.style.display = 'flex';
+            box.innerHTML = pendingAttachments.map((a, i) => {
+                if (a.uploading) return `<div class="attach-chip"><span style="font-size:18px">⏳</span><span class="chip-name">${escapeHtml(a.name)}</span></div>`;
+                const thumb = a.mime.startsWith('image/') ? `<img src="${a.url}" alt="">` : `<span style="font-size:18px">${fileEmoji(a.mime)}</span>`;
+                return `<div class="attach-chip">${thumb}<span class="chip-name" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i})" title="ลบ">✕</button></div>`;
+            }).join('');
+            updateSendButton();
+        }
+
+        function removeAttachment(i) { pendingAttachments.splice(i, 1); renderAttachPreview(); }
+
+        async function addAttachments(files) {
+            for (const file of files) {
+                if (file.size > 20 * 1024 * 1024) { showError(`ไฟล์ "${file.name}" ใหญ่เกิน 20MB`); continue; }
+                const placeholder = { name: file.name, mime: file.type, uploading: true };
+                pendingAttachments.push(placeholder);
+                renderAttachPreview();
+
+                const fd = new FormData();
+                fd.append('files[]', file);
+                try {
+                    const res  = await fetch('?api=upload', { method:'POST', body: fd });
+                    const data = await res.json();
+                    const idx  = pendingAttachments.indexOf(placeholder);
+                    if (idx === -1) continue;
+                    const f = data.files?.[0];
+                    if (f?.ok) {
+                        pendingAttachments[idx] = { uuid: f.uuid, name: f.name, mime: f.mime, url: f.url };
+                    } else {
+                        pendingAttachments.splice(idx, 1);
+                        showError(f?.msg || 'อัปโหลดล้มเหลว');
+                    }
+                } catch { const idx = pendingAttachments.indexOf(placeholder); if (idx !== -1) pendingAttachments.splice(idx, 1); }
+                renderAttachPreview();
+            }
         }
 
         $('#attachBtn').on('click', () => document.getElementById('fileInput').click());
-        document.getElementById('fileInput').addEventListener('change', function() {
-            addAttachments([...this.files]);
-            this.value = '';
-        });
-        // Drag & drop onto input box
+        document.getElementById('fileInput').addEventListener('change', function() { addAttachments([...this.files]); this.value=''; });
         document.getElementById('inputBox').addEventListener('dragover', e => { e.preventDefault(); e.currentTarget.style.borderColor='rgba(99,102,241,.6)'; });
         document.getElementById('inputBox').addEventListener('dragleave', e => { e.currentTarget.style.borderColor=''; });
-        document.getElementById('inputBox').addEventListener('drop', e => {
-            e.preventDefault(); e.currentTarget.style.borderColor='';
-            addAttachments([...e.dataTransfer.files]);
-        });
+        document.getElementById('inputBox').addEventListener('drop', e => { e.preventDefault(); e.currentTarget.style.borderColor=''; addAttachments([...e.dataTransfer.files]); });
 
         // ── Streaming API call ───────────────────────────────────────────
         async function sendMessage(userMessage) {
-            // Build content: text + attachments
-            let userContent;
-            if (pendingAttachments.length > 0) {
-                userContent = [{ type: 'text', text: userMessage }];
-                for (const att of pendingAttachments) {
-                    if (att.type.startsWith('image/')) {
-                        userContent.push({ type: 'image_url', image_url: { url: att.dataUrl } });
-                    } else {
-                        // Text/code files: embed as text block
-                        try {
-                            const b64 = att.dataUrl.split(',')[1];
-                            const text = atob(b64);
-                            userContent.push({ type: 'text', text: `\n\n[ไฟล์: ${att.name}]\n\`\`\`\n${text}\n\`\`\`` });
-                        } catch { userContent.push({ type: 'text', text: `\n\n[ไฟล์แนบ: ${att.name}]` }); }
-                    }
-                }
-            } else {
-                userContent = userMessage;
-            }
+            const attachedFiles = pendingAttachments.filter(a => a.uuid);
+            const fileUuids     = attachedFiles.map(a => a.uuid);
 
-            // Display: show text + thumbnails in chat
+            // Store in messages as text (server handles multimodal)
+            messages.push({ role: 'user', content: userMessage });
+
+            // Display: text + file previews
             let displayHtml = escapeHtml(userMessage);
-            if (pendingAttachments.length) {
-                const thumbs = pendingAttachments.map(a =>
-                    a.type.startsWith('image/')
-                        ? `<img src="${a.dataUrl}" style="max-height:120px;max-width:200px;border-radius:8px;margin-top:6px;display:block">`
-                        : `<div style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:4px 8px;background:rgba(99,102,241,.12);border-radius:6px;font-size:12px">${fileEmoji(a.type)} ${escapeHtml(a.name)}</div>`
+            if (attachedFiles.length) {
+                const thumbs = attachedFiles.map(a =>
+                    a.mime.startsWith('image/')
+                        ? `<img src="${a.url}" style="max-height:120px;max-width:200px;border-radius:8px;margin-top:6px;display:block">`
+                        : `<div style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:4px 8px;background:rgba(99,102,241,.12);border-radius:6px;font-size:12px">${fileEmoji(a.mime)} ${escapeHtml(a.name)}</div>`
                 ).join('');
                 displayHtml += thumbs;
             }
-
-            messages.push({ role: 'user', content: userContent });
             const msgEl = appendMessage('user', '');
             $('#' + msgEl + ' .message-content').html(displayHtml);
 
             pendingAttachments = [];
             renderAttachPreview();
-
             $messageInput.val('');
             autoResizeTextarea();
             updateSendButton();
@@ -2344,6 +2464,7 @@ endif;
                         model: currentModel,
                         conv_id: currentConvId || 0,
                         conv_title: convTitle,
+                        file_uuids: fileUuids,
                     })
                 });
 

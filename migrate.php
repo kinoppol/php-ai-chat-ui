@@ -216,6 +216,29 @@ $migrations = [
         }
     },
 
+    '20250626_001_conversation_files' => function(PDO $pdo): void {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `conversation_files` (
+            `id`              INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+            `uuid`            VARCHAR(64)     NOT NULL,
+            `user_id`         INT UNSIGNED    NOT NULL,
+            `conversation_id` INT UNSIGNED    NULL DEFAULT NULL,
+            `message_id`      INT UNSIGNED    NULL DEFAULT NULL,
+            `original_name`   VARCHAR(500)    NOT NULL,
+            `mime_type`       VARCHAR(100)    NOT NULL DEFAULT '',
+            `size`            INT UNSIGNED    NOT NULL DEFAULT 0,
+            `created_at`      TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `uq_uuid` (`uuid`),
+            KEY `idx_conv`    (`conversation_id`),
+            KEY `idx_msg`     (`message_id`),
+            CONSTRAINT `fk_cf_conv` FOREIGN KEY (`conversation_id`)
+                REFERENCES `conversations`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        // Default storage limit setting
+        $pdo->exec("INSERT IGNORE INTO settings (`key`,`value`,`label`,`group`)
+            VALUES ('conv_storage_limit_mb','200','ขนาดไฟล์สูงสุดต่อการสนทนา (MB)','storage')");
+    },
+
 ];
 
 // ─── Run pending migrations ───────────────────────────────────────────────────
