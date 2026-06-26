@@ -236,7 +236,13 @@ if (isset($_GET['api']) && $_GET['api'] === 'token_status' && $authenticated) {
 // ─── File upload dir helper ───────────────────────────────────────────────────
 function uploadDir(): string {
     $dir = __DIR__ . '/uploads';
-    if (!is_dir($dir)) { mkdir($dir, 0755, true); }
+    if (!is_dir($dir)) {
+        if (!@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            throw new RuntimeException("ไม่สามารถสร้างโฟลเดอร์ uploads ได้: {$dir}");
+        }
+        // Protect directory from direct web access
+        file_put_contents($dir . '/.htaccess', "Deny from all\n");
+    }
     return $dir;
 }
 function uploadPath(string $uuid): string { return uploadDir() . '/' . $uuid; }
@@ -247,16 +253,24 @@ if (isset($_GET['api']) && $_GET['api'] === 'upload' && $authenticated) {
     if (empty($_FILES['files'])) { echo json_encode(['ok'=>false,'msg'=>'ไม่มีไฟล์']); exit; }
     $limitMb = (int)(chatDb()->query("SELECT value FROM settings WHERE `key`='conv_storage_limit_mb'")->fetchColumn() ?: 200);
     $results = [];
+    try { $dir = uploadDir(); } catch (RuntimeException $e) { echo json_encode(['ok'=>false,'msg'=>$e->getMessage()]); exit; }
     foreach ($_FILES['files']['tmp_name'] as $i => $tmp) {
-        if ($_FILES['files']['error'][$i] !== UPLOAD_ERR_OK) continue;
+        if ($_FILES['files']['error'][$i] !== UPLOAD_ERR_OK) {
+            $errMap = [1=>'ไฟล์ใหญ่เกินค่า php.ini',2=>'ไฟล์ใหญ่เกิน form limit',3=>'อัปโหลดไม่ครบ',4=>'ไม่มีไฟล์'];
+            $results[] = ['ok'=>false,'name'=>basename($_FILES['files']['name'][$i]),'msg'=>$errMap[$_FILES['files']['error'][$i]]??'ข้อผิดพลาด '.$_FILES['files']['error'][$i]]; continue;
+        }
         $name = basename($_FILES['files']['name'][$i]);
-        $mime = $_FILES['files']['type'][$i] ?: mime_content_type($tmp) ?: 'application/octet-stream';
+        $mime = $_FILES['files']['type'][$i] ?: (function_exists('mime_content_type') ? mime_content_type($tmp) : '') ?: 'application/octet-stream';
         $size = (int)$_FILES['files']['size'][$i];
         if ($size > 20 * 1024 * 1024) { $results[] = ['ok'=>false,'name'=>$name,'msg'=>'ไฟล์ใหญ่เกิน 20MB']; continue; }
-        $uuid = bin2hex(random_bytes(16));
-        $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        $uuid   = bin2hex(random_bytes(16));
+        $ext    = strtolower(pathinfo($name, PATHINFO_EXTENSION));
         $stored = $uuid . ($ext ? '.' . $ext : '');
-        if (!move_uploaded_file($tmp, uploadPath($stored))) { $results[] = ['ok'=>false,'name'=>$name,'msg'=>'บันทึกไฟล์ล้มเหลว']; continue; }
+        $dest   = $dir . '/' . $stored;
+        if (!move_uploaded_file($tmp, $dest)) {
+            $writable = is_writable($dir) ? 'เขียนได้' : 'เขียนไม่ได้';
+            $results[] = ['ok'=>false,'name'=>$name,'msg'=>"บันทึกไฟล์ล้มเหลว (โฟลเดอร์ {$writable})"]; continue;
+        }
         chatDb()->prepare('INSERT INTO conversation_files (uuid, user_id, original_name, mime_type, size) VALUES (?,?,?,?,?)')
             ->execute([$uuid, $currentUserId, $name, $mime, $size]);
         $results[] = ['ok'=>true,'uuid'=>$uuid,'name'=>$name,'mime'=>$mime,'size'=>$size,'url'=>"chat.php?file={$uuid}"];
