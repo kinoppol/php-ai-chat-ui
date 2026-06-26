@@ -1466,6 +1466,39 @@ endif;
         }
         .attach-btn:hover { background: var(--hover-bg); color: var(--text-chat); border-color: rgba(99,102,241,.5); }
         .attach-btn svg { width: 16px; height: 16px; }
+        /* ── Message file attachments ── */
+        .msg-img {
+            max-height: 240px; max-width: 320px; border-radius: 10px;
+            margin-top: 8px; display: block; cursor: zoom-in;
+            transition: opacity .15s;
+        }
+        .msg-img:hover { opacity: .88; }
+        .msg-file-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            margin-top: 6px; padding: 6px 10px;
+            background: rgba(99,102,241,.12); border: 1px solid rgba(99,102,241,.25);
+            border-radius: 8px; font-size: 12px; color: var(--text-chat);
+            text-decoration: none; cursor: pointer; transition: .15s;
+        }
+        .msg-file-chip:hover { background: rgba(99,102,241,.22); border-color: rgba(99,102,241,.45); }
+        /* ── Lightbox ── */
+        #lightbox {
+            display: none; position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,.88); align-items: center; justify-content: center;
+            cursor: zoom-out;
+        }
+        #lightbox.open { display: flex; }
+        #lightbox img {
+            max-width: 92vw; max-height: 92vh; border-radius: 12px;
+            box-shadow: 0 20px 80px rgba(0,0,0,.6); object-fit: contain;
+            cursor: default;
+        }
+        #lightboxClose {
+            position: fixed; top: 18px; right: 22px; font-size: 32px; color: #fff;
+            cursor: pointer; line-height: 1; opacity: .7; transition: .15s;
+            background: none; border: none; padding: 0;
+        }
+        #lightboxClose:hover { opacity: 1; }
 
         .input-box {
             display: flex;
@@ -2344,11 +2377,7 @@ endif;
                     msgs.forEach(m => {
                         const el = appendMessage(m.role, m.content);
                         if (m.role === 'user' && m.files?.length) {
-                            const thumbs = m.files.map(f =>
-                                f.mime.startsWith('image/')
-                                    ? `<img src="${f.url}" style="max-height:120px;max-width:200px;border-radius:8px;margin-top:6px;display:block">`
-                                    : `<div style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:4px 8px;background:rgba(99,102,241,.12);border-radius:6px;font-size:12px">${fileEmoji(f.mime)} ${escapeHtml(f.name)}</div>`
-                            ).join('');
+                            const thumbs = m.files.map(f => renderFileAttachment(f)).join('');
                             $('#' + el + ' .message-content').append(thumbs);
                         }
                     });
@@ -2386,6 +2415,14 @@ endif;
             if (mime === 'application/pdf') return '📄';
             if (mime.startsWith('text/') || /json|yaml|xml|csv/.test(mime)) return '📝';
             return '📎';
+        }
+
+        // Render a stored file attachment (clickable image or downloadable chip)
+        function renderFileAttachment(f) {
+            if (f.mime && f.mime.startsWith('image/')) {
+                return `<img class="msg-img" src="${f.url}" alt="${escapeHtml(f.name)}" onclick="openLightbox('${f.url}')" title="${escapeHtml(f.name)}">`;
+            }
+            return `<a class="msg-file-chip" href="${f.url}" download="${escapeHtml(f.name)}" title="ดาวน์โหลด ${escapeHtml(f.name)}">${fileEmoji(f.mime)} ${escapeHtml(f.name)}</a>`;
         }
 
         function renderAttachPreview() {
@@ -2445,12 +2482,7 @@ endif;
             // Display: text + file previews
             let displayHtml = escapeHtml(userMessage);
             if (attachedFiles.length) {
-                const thumbs = attachedFiles.map(a =>
-                    a.mime.startsWith('image/')
-                        ? `<img src="${a.url}" style="max-height:120px;max-width:200px;border-radius:8px;margin-top:6px;display:block">`
-                        : `<div style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:4px 8px;background:rgba(99,102,241,.12);border-radius:6px;font-size:12px">${fileEmoji(a.mime)} ${escapeHtml(a.name)}</div>`
-                ).join('');
-                displayHtml += thumbs;
+                displayHtml += attachedFiles.map(a => renderFileAttachment(a)).join('');
             }
             const msgEl = appendMessage('user', '');
             $('#' + msgEl + ' .message-content').html(displayHtml);
@@ -2733,7 +2765,23 @@ endif;
     }
 
     // ปิดด้วย Escape
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTokenPopup(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeTokenPopup(); closeLightbox(); } });
+    </script>
+
+    <!-- Lightbox -->
+    <div id="lightbox" onclick="closeLightbox()">
+        <button id="lightboxClose" onclick="closeLightbox()">✕</button>
+        <img id="lightboxImg" src="" alt="" onclick="event.stopPropagation()">
+    </div>
+    <script>
+    function openLightbox(src) {
+        document.getElementById('lightboxImg').src = src;
+        document.getElementById('lightbox').classList.add('open');
+    }
+    function closeLightbox() {
+        document.getElementById('lightbox').classList.remove('open');
+        document.getElementById('lightboxImg').src = '';
+    }
     </script>
 
     <?= themeScript() ?>
